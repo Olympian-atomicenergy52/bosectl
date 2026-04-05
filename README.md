@@ -105,8 +105,9 @@ chmod +x bosectl
 ./bosectl status
 ```
 
-`bosectl` auto-detects your Bose headphones from the paired device list —
-no MAC address configuration needed.
+`bosectl` auto-detects your Bose headphones from the paired device list
+using the Bose vendor UUID — no MAC address configuration needed, even
+if you've renamed your headphones.
 
 ### 3. Try it out
 
@@ -125,9 +126,9 @@ no MAC address configuration needed.
 - **"Connection failed"** — Make sure the headphones are powered on, paired,
   and connected via Bluetooth. Only one RFCOMM connection can be active at a
   time, so close the Bose app on any connected phone first.
-- **"No Bose device found"** — `bosectl` searches for paired devices with
-  "Bose" in the name. You can set `BOSE_MAC=XX:XX:XX:XX:XX:XX` as an
-  environment variable to skip auto-detection.
+- **"No Bose device found"** — `bosectl` detects Bose headphones by their
+  vendor UUID, so it works even with renamed devices. If auto-detection
+  fails, set `BOSE_MAC=XX:XX:XX:XX:XX:XX` as an environment variable.
 - **"Device or resource busy"** — Wait a second and try again. The headphones
   need a brief cooldown between Bluetooth connections.
 
