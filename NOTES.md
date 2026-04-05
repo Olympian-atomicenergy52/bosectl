@@ -347,9 +347,17 @@ Sending BMAP packets in report 0x0c gets a response on 0x0d, but always the
 same 3 bytes: `04 01 05`. This appears to be a "not initialized" error — the
 USB BMAP channel likely requires a handshake sequence before accepting commands.
 
-Over Bluetooth RFCOMM, BMAP is immediately active. Over USB HID, some
-initialization is needed. The Bose app probably sends a setup sequence when
-connecting over USB. Capturing USB traffic from the app would reveal this.
+Over Bluetooth RFCOMM, BMAP is immediately active. The USB HID channel
+appears to be **firmware update only**, not general BMAP control:
+
+- The Bose Updater (Windows, Qt/C++ app) uses a modified HIDAPI library
+  to communicate over USB HID, downloads firmware from AWS S3, and pushes
+  it through HID reports
+- The `04 01 05` response to all our BMAP attempts is likely "not in DFU mode"
+- The updater probably sends a special command to enter firmware update mode
+- No desktop Bose app exists for general headphone control — only the updater
+
+**Conclusion:** USB is for firmware updates. Use Bluetooth RFCOMM for control.
 
 ### USB Device Info
 ```
