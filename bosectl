@@ -147,12 +147,13 @@ ERROR_NAMES = {0: "Unknown", 1: "Length", 2: "Chksum", 3: "FblockNotSupp",
 # Slots 5-10 are empty by default and can be freely configured.
 # To change settings like CNC or spatial audio, we write to an editable slot
 # via ModeConfig SETGET [31.6], then switch to it via CurrentMode START [31.3].
+# Firmware preset modes (indices 0-3, not editable).
+# Modes 4-10 are user-configurable and managed via the profile commands.
 MODES = {
     "quiet": (0, "Quiet — full ANC"),
     "aware": (1, "Aware — transparency"),
     "immersion": (2, "Immersion — spatial audio, head tracking"),
     "cinema": (3, "Cinema — spatial audio, fixed stage"),
-    "home": (4, "Home — custom profile"),
 }
 
 MODE_BY_IDX = {i: n for n, (i, _) in MODES.items()}
@@ -1199,6 +1200,18 @@ def usage():
     section("Modes")
     for name, (_, desc) in MODES.items():
         cmd(name, desc)
+    # Show user-configured profiles (requires BT connection, so fail silently)
+    try:
+        sock = connect()
+        modes = get_all_modes(sock)
+        sock.close()
+        custom = [(c.get("name"), idx) for idx, (r, c) in sorted(modes.items())
+                  if r[3] == 1 and r[4] == 1 and c.get("name", "").lower() not in ("none", "")]
+        if custom:
+            for name, idx in custom:
+                cmd(name.lower(), f"{name} — custom profile (slot {idx})")
+    except Exception:
+        cmd("*", "custom profiles (use 'profiles' to list)")
     print()
 
     section("Profiles")
