@@ -66,28 +66,70 @@ $ ./bosectl name "My Cans"  # Rename your headphones (any UTF-8 string)
 
 ## Requirements
 
-- Linux with BlueZ (Bluetooth stack)
-- Python 3 (no external dependencies)
-- Bose QC Ultra 2 paired via `bluetoothctl`
+- **Linux** with BlueZ (virtually every distro has this — it's the standard
+  Linux Bluetooth stack)
+- **Python 3.6+** (uses only the standard library — no pip install needed)
+- **Bluetooth** adapter (built-in or USB dongle)
+- **Bose QC Ultra 2** headphones paired to your machine
 
-## Setup
+Not required: Bose app, Bose account, internet connection, phone.
 
-1. Pair your headphones normally via `bluetoothctl`:
-   ```
-   bluetoothctl
-   > scan on
-   > pair XX:XX:XX:XX:XX:XX
-   > trust XX:XX:XX:XX:XX:XX
-   > connect XX:XX:XX:XX:XX:XX
-   ```
+## Quick start
 
-2. Edit the `BOSE_MAC` variable in `bose` to match your headphones' MAC address.
+### 1. Pair your headphones
 
-3. Run:
-   ```
-   chmod +x bose
-   ./bosectl status
-   ```
+If your headphones are already paired to your Linux machine (you can hear
+audio through them), skip to step 2.
+
+Otherwise, put your headphones in pairing mode (slide the power switch up
+and hold until the LED blinks blue), then:
+
+```bash
+bluetoothctl
+> scan on
+# Wait for your headphones to appear, then:
+> pair XX:XX:XX:XX:XX:XX
+> trust XX:XX:XX:XX:XX:XX
+> connect XX:XX:XX:XX:XX:XX
+> exit
+```
+
+Replace `XX:XX:XX:XX:XX:XX` with the MAC address shown in the scan output.
+
+### 2. Download and run
+
+```bash
+git clone https://github.com/aaronsb/bosectl.git
+cd bosectl
+chmod +x bosectl
+./bosectl status
+```
+
+`bosectl` auto-detects your Bose headphones from the paired device list —
+no MAC address configuration needed.
+
+### 3. Try it out
+
+```bash
+./bosectl status              # See everything
+./bosectl cnc 7               # Set noise cancellation to 7/10
+./bosectl eq 3 0 -2           # Bass +3, mid flat, treble -2
+./bosectl spatial head        # Spatial audio with head tracking
+./bosectl profile set Work cnc=8 spatial=off   # Save a custom profile
+./bosectl Work                # Switch to it by name
+./bosectl quiet               # Back to full ANC
+```
+
+### Troubleshooting
+
+- **"Connection failed"** — Make sure the headphones are powered on, paired,
+  and connected via Bluetooth. Only one RFCOMM connection can be active at a
+  time, so close the Bose app on any connected phone first.
+- **"No Bose device found"** — `bosectl` searches for paired devices with
+  "Bose" in the name. You can set `BOSE_MAC=XX:XX:XX:XX:XX:XX` as an
+  environment variable to skip auto-detection.
+- **"Device or resource busy"** — Wait a second and try again. The headphones
+  need a brief cooldown between Bluetooth connections.
 
 No Bose app installation, Bose account, or internet connection needed.
 
