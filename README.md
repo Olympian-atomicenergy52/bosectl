@@ -1,13 +1,22 @@
-# bosectl — Control Bose QC Ultra 2 from Linux
+# bosectl
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3](https://img.shields.io/badge/Python-3-green.svg)](https://www.python.org)
+[![Platform: Linux](https://img.shields.io/badge/Platform-Linux-orange.svg)](https://kernel.org)
+[![Bose QC Ultra 2](https://img.shields.io/badge/Bose-QC_Ultra_2-black.svg)](https://www.bose.com)
+
+**Control Bose QC Ultra 2 headphones from Linux — no app, no cloud, no account.**
 
 ![bosectl CLI](docs/media/screenshot.png)
 
-Control your Bose QC Ultra 2 headphones directly over Bluetooth — no Bose app,
-no Bose account, no cloud, no phone required.
-
-This is a reverse-engineered implementation of the Bose BMAP protocol that gives
+A reverse-engineered implementation of the Bose BMAP protocol that gives
 you full control over noise cancellation, EQ, spatial audio, device settings, and
-more. Everything runs over a local Bluetooth RFCOMM connection to the headphones.
+more. Everything runs over a direct Bluetooth RFCOMM connection to the headphones.
+
+> **This is not an exploit.** We use the BMAP protocol's standard SETGET operator,
+> which the headphones accept without authentication. No keys are extracted, no
+> encryption is broken, no traffic is replayed. We're talking to our own hardware
+> through an interface the firmware explicitly supports.
 
 ## What you can do
 
