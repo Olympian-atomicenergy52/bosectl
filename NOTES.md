@@ -70,10 +70,26 @@ Packet: [31, 3, 0x05, 2, MODE_INDEX, VOICE_PROMPT]
 | [31.9]   | Reset      | Accepts START (InvalidData with empty payload) |
 
 #### Unauthenticated START in Other Blocks
-| Function | Name    | Notes |
-|----------|---------|-------|
-| [7.4]    | Power   | Accepts START (InvalidData — needs correct payload) |
-| [18.19]  | ValidatedDeviceIdentityKeypair | Accepts public key, returns PROCESSING |
+| Function | Name    | Status | Notes |
+|----------|---------|--------|-------|
+| [7.1]    | Control.GetAll | PROCESSING | Triggers control state dump |
+| [7.4]    | Control.Power  | **RESULT** | **0=power off, 1=power on** |
+| [4.1]    | DevMgmt.Connect | InvalidData | Needs device MAC — may initiate BT connection |
+| [4.8]    | DevMgmt.PairingMode | InvalidData | Needs payload — may enable pairing mode |
+| [5.3]    | AudioMgmt.Control | InvalidData | Needs payload — likely play/pause/skip |
+| [18.19]  | ValidatedDeviceIdentityKeypair | PROCESSING | Accepts public key for auth flow |
+
+#### AudioModes SETGET (partially unblocked?)
+| Function | Result | Notes |
+|----------|--------|-------|
+| [31.6] ModeConfig SETGET | **Error 8 (Runtime)** | Gets past auth! Payload format wrong |
+| [31.8] Favorites SETGET | **Error 8 (Runtime)** | Gets past auth! Payload format wrong |
+| [31.3] CurrentMode SETGET | Error 5 (auth) | Blocked, but START works |
+
+Error 8 (Runtime) on ModeConfig and Favorites SETGET means the auth check PASSES
+but the payload is malformed. If we figure out the correct payload format from
+`FBlockAudioModesKt.createAudioModesConfigSetGetPayload()`, we may be able to
+persistently configure modes (including CNC level) without cloud auth.
 
 ### Mode Config Details (raw data)
 ```
