@@ -50,7 +50,7 @@ pub fn connect(mac: Option<&str>, device_type: Option<&str>) -> BmapResult<BmapC
     // Some devices require an init packet before responding.
     if let Some(init) = config.init_packet {
         let pkt = protocol::bmap_packet(init.0, init.1, protocol::Operator::Get, &[]);
-        let _ = transport.send_recv(&pkt);
+        transport.send_recv(&pkt)?;
     }
 
     Ok(BmapConnection::new(transport, config))

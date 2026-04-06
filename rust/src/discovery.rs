@@ -78,15 +78,22 @@ fn detect_device_type(info: &str) -> String {
     // Modalias format: bluetooth:vXXXXpYYYYdZZZZ
     for line in info.lines() {
         let trimmed = line.trim();
-        if trimmed.starts_with("Modalias:") {
-            if let Some(p_pos) = trimmed.find('p') {
-                let id_str = &trimmed[p_pos + 1..p_pos + 5];
-                if let Ok(product_id) = u16::from_str_radix(id_str, 16) {
-                    return match product_id {
-                        0x4082 => "qc_ultra2".to_string(),
-                        0x4020 | 0x400C => "qc35".to_string(),
-                        _ => "qc_ultra2".to_string(),
-                    };
+        if let Some(rest) = trimmed.strip_prefix("Modalias:") {
+            let rest = rest.trim();
+            // Match "bluetooth:vXXXXpYYYYdZZZZ" and extract YYYY
+            if let Some(bt_rest) = rest.strip_prefix("bluetooth:v") {
+                if bt_rest.len() >= 9 {  // "XXXXpYYYY" minimum
+                    let after_vendor = &bt_rest[4..];  // skip vendor "XXXX"
+                    if after_vendor.starts_with('p') {
+                        let id_str = &after_vendor[1..5];
+                        if let Ok(product_id) = u16::from_str_radix(id_str, 16) {
+                            return match product_id {
+                                0x4082 => "qc_ultra2".to_string(),
+                                0x4020 | 0x400C => "qc35".to_string(),
+                                _ => "qc_ultra2".to_string(),
+                            };
+                        }
+                    }
                 }
             }
         }
