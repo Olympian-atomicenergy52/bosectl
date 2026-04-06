@@ -3,9 +3,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3](https://img.shields.io/badge/Python-3-green.svg)](https://www.python.org)
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux-orange.svg)](https://kernel.org)
-[![Bose QC Ultra 2](https://img.shields.io/badge/Bose-QC_Ultra_2-black.svg)](https://www.bose.com)
+[![Bose BMAP](https://img.shields.io/badge/Bose-BMAP-black.svg)](https://www.bose.com)
 
-**Control Bose QC Ultra 2 headphones from Linux — no app, no cloud, no account.**
+**Control Bose headphones from Linux — no app, no cloud, no account.**
 
 ![bosectl CLI](docs/media/screenshot.png)
 
@@ -70,7 +70,7 @@ $ ./bosectl name "My Cans"  # Rename your headphones (any UTF-8 string)
   Linux Bluetooth stack)
 - **Python 3.6+** (uses only the standard library — no pip install needed)
 - **Bluetooth** adapter (built-in or USB dongle)
-- **Bose QC Ultra 2** headphones paired to your machine
+- **Bose headphones** paired to your machine (QC Ultra 2, QC35, and potentially others)
 
 Not required: Bose app, Bose account, internet connection, phone.
 
@@ -236,13 +236,12 @@ Full protocol documentation is in [NOTES.md](NOTES.md), including:
 ## Compatibility
 
 Tested on:
-- **Bose QC Ultra 2 HP** (codename "wolverine", QCC-384 platform)
-- Firmware 8.2.20
+- **Bose QC Ultra 2** (codename "wolverine", QCC-384) — firmware 8.2.20
+- **Bose QC35** (codename "baywolf", CSR8670) — firmware 4.8.1
 
 The BMAP protocol is shared across Bose's Bluetooth product line. Other models
-(QC 45, QC Ultra Earbuds, NC 700, etc.) likely use similar function blocks with
-the same authentication gaps, but the specific function IDs and payload formats
-may differ.
+(QC 45, QC Ultra Earbuds, NC 700, etc.) likely use similar function blocks —
+adding a new device is just a config dict with the right addresses.
 
 ## Tools included
 

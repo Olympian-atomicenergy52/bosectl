@@ -34,7 +34,7 @@ _BANNER_LINES = [
 ]
 BANNER = "\n".join(
     "%s%s%s%s" % (C_BOLD, _GRAD[i], line, C_RESET) for i, line in enumerate(_BANNER_LINES)
-) + "\n%s  Bose QC Ultra 2 — no app, no cloud, no account%s\n" % (C_DIM, C_RESET)
+) + "\n%s  Bose headphones — no app, no cloud, no account%s\n" % (C_DIM, C_RESET)
 
 
 def row(label, value, color=None):
