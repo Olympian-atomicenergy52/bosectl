@@ -137,21 +137,10 @@ class BmapConnection:
 
         Returns preset name for known indices, or custom profile name.
         """
-        feat = self._feature("current_mode")
-        fblock, func = feat["addr"]
-        resp = self._transport.send_recv(bmap_packet(fblock, func, OP_GET))
-        parsed = parse_response(resp)
-        if parsed is None:
+        idx = self.mode_idx()
+        if idx is None:
             return None
-        mode_idx = parsed.payload[0]
-        by_idx = self._device.MODE_BY_IDX
-        if mode_idx in by_idx:
-            return by_idx[mode_idx]
-        # Look up custom profile name
-        modes = self.modes()
-        if mode_idx in modes:
-            return modes[mode_idx].name
-        return "unknown(%d)" % mode_idx
+        return self._mode_name_from_idx(idx)
 
     def mode_idx(self):
         """Current audio mode index (int)."""
@@ -162,6 +151,20 @@ class BmapConnection:
         if parsed:
             return parsed.payload[0]
         return None
+
+    def _mode_name_from_idx(self, idx):
+        """Resolve a mode index to a name without an extra GET."""
+        by_idx = self._device.MODE_BY_IDX
+        if idx in by_idx:
+            return by_idx[idx]
+        # Custom profile — need to fetch modes (one drain, not a GET)
+        try:
+            modes = self.modes()
+            if idx in modes:
+                return modes[idx].name
+        except BmapError:
+            pass
+        return "unknown(%d)" % idx
 
     def cnc(self):
         """Noise cancellation (current, max) tuple."""
@@ -215,13 +218,16 @@ class BmapConnection:
 
     def status(self):
         """Full device status snapshot. Returns DeviceStatus namedtuple."""
+        # Single GET for mode index, derive name without extra round trip.
+        current_idx = self.mode_idx()
+        current_name = self._mode_name_from_idx(current_idx) if current_idx is not None else ""
         cnc_cur, cnc_max = self._safe_read(self.cnc, (0, 10))
         prompts_on, prompts_lang = self._safe_read(self.prompts, (False, ""))
 
         return DeviceStatus(
             battery=self.battery(),
-            mode=self.mode(),
-            mode_idx=self.mode_idx(),
+            mode=current_name,
+            mode_idx=current_idx,
             cnc_level=cnc_cur, cnc_max=cnc_max,
             eq=self._safe_read(self.eq, []),
             name=self._safe_read(self.name, ""),

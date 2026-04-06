@@ -116,12 +116,23 @@ impl<T: Transport> BmapConnection<T> {
     /// Current audio mode name.
     pub fn mode(&self) -> BmapResult<String> {
         let idx = self.mode_idx()?;
+        Ok(self.mode_name_from_idx(idx))
+    }
+
+    /// Resolve a mode index to a name without an extra GET.
+    fn mode_name_from_idx(&self, idx: u8) -> String {
         for &(name, ref preset) in self.config.preset_modes {
             if preset.idx == idx {
-                return Ok(name.to_string());
+                return name.to_string();
             }
         }
-        Ok(format!("custom({})", idx))
+        // Try custom profiles if modes() is available
+        if let Ok(modes) = self.modes() {
+            if let Some(mc) = modes.iter().find(|m| m.mode_idx == idx) {
+                return mc.name.clone();
+            }
+        }
+        format!("custom({})", idx)
     }
 
     /// Noise cancellation (current, max) tuple.
@@ -184,13 +195,16 @@ impl<T: Transport> BmapConnection<T> {
 
     /// Full device status.
     pub fn status(&self) -> BmapResult<DeviceStatus> {
+        // Single GET for mode index, derive name without extra round trip.
+        let current_idx = self.mode_idx()?;
+        let current_name = self.mode_name_from_idx(current_idx);
         let (cnc_level, cnc_max) = self.cnc().unwrap_or((0, 10));
         let (prompts_enabled, prompts_language) = self.prompts().unwrap_or((false, "Unknown"));
 
         Ok(DeviceStatus {
             battery: self.battery()?,
-            mode: self.mode()?,
-            mode_idx: self.mode_idx()?,
+            mode: current_name,
+            mode_idx: current_idx,
             cnc_level,
             cnc_max,
             eq: self.eq().unwrap_or_default(),
