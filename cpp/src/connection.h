@@ -21,74 +21,30 @@ public:
 
     // ── Read Operations ─────────────────────────────────────────────────────
 
-    uint8_t battery() {
-        auto p = get(*config_.battery);
-        return parse_battery(p);
-    }
-
-    std::string firmware() {
-        auto p = get(*config_.firmware);
-        return parse_firmware(p);
-    }
-
-    std::string name() {
-        auto p = get(*config_.product_name);
-        return parse_product_name(p);
-    }
+    uint8_t battery()                     { return parse_battery(get(require(config_.battery, "battery"))); }
+    std::string firmware()                { return parse_firmware(get(require(config_.firmware, "firmware"))); }
+    std::string name()                    { return parse_product_name(get(require(config_.product_name, "product_name"))); }
+    std::pair<uint8_t, uint8_t> cnc()     { return parse_cnc(get(require(config_.cnc, "cnc"))); }
+    std::vector<EqBand> eq()              { return parse_eq(get(require(config_.eq, "eq"))); }
+    std::string sidetone()                { return parse_sidetone(get(require(config_.sidetone, "sidetone"))); }
+    bool multipoint()                     { return parse_multipoint(get(require(config_.multipoint, "multipoint"))); }
+    bool auto_pause()                     { return parse_bool(get(require(config_.auto_pause, "auto_pause"))); }
+    bool auto_answer()                    { return parse_bool(get(require(config_.auto_answer, "auto_answer"))); }
+    std::pair<bool, std::string> prompts(){ return parse_voice_prompts(get(require(config_.voice_prompts, "voice_prompts"))); }
+    std::optional<ButtonMapping> buttons(){ return parse_buttons(get(require(config_.buttons, "buttons"))); }
 
     uint8_t mode_idx() {
-        auto p = get(*config_.current_mode);
+        auto p = get(require(config_.current_mode, "current_mode"));
         return p.empty() ? 0 : p[0];
     }
 
     std::string mode() {
-        auto idx = mode_idx();
-        return mode_name_from_idx(idx);
-    }
-
-    std::pair<uint8_t, uint8_t> cnc() {
-        auto p = get(*config_.cnc);
-        return parse_cnc(p);
-    }
-
-    std::vector<EqBand> eq() {
-        auto p = get(*config_.eq);
-        return parse_eq(p);
-    }
-
-    std::string sidetone() {
-        auto p = get(*config_.sidetone);
-        return parse_sidetone(p);
-    }
-
-    bool multipoint() {
-        auto p = get(*config_.multipoint);
-        return parse_multipoint(p);
-    }
-
-    bool auto_pause() {
-        auto p = get(*config_.auto_pause);
-        return parse_bool(p);
-    }
-
-    bool auto_answer() {
-        auto p = get(*config_.auto_answer);
-        return parse_bool(p);
-    }
-
-    std::pair<bool, std::string> prompts() {
-        auto p = get(*config_.voice_prompts);
-        return parse_voice_prompts(p);
-    }
-
-    std::optional<ButtonMapping> buttons() {
-        auto p = get(*config_.buttons);
-        return parse_buttons(p);
+        return mode_name_from_idx(mode_idx());
     }
 
     std::vector<ModeConfig> modes() {
-        auto addr = *config_.get_all_modes;
-        auto mc_addr = *config_.mode_config;
+        auto addr = require(config_.get_all_modes, "get_all_modes");
+        auto mc_addr = require(config_.mode_config, "mode_config");
         auto responses = start_drain(addr, {});
         std::vector<ModeConfig> result;
         for (auto& r : responses) {
@@ -166,17 +122,16 @@ public:
     }
 
     void set_name(const std::string& new_name) {
-        auto addr = *config_.product_name;
         std::vector<uint8_t> payload(new_name.begin(), new_name.end());
-        setget(addr, payload);
+        setget(require(config_.product_name, "product_name"), payload);
     }
 
     void set_multipoint(bool on) {
-        setget(*config_.multipoint, {static_cast<uint8_t>(on ? 1 : 0)});
+        setget(require(config_.multipoint, "multipoint"), {static_cast<uint8_t>(on ? 1 : 0)});
     }
 
     void set_auto_pause(bool on) {
-        setget(*config_.auto_pause, {static_cast<uint8_t>(on ? 1 : 0)});
+        setget(require(config_.auto_pause, "auto_pause"), {static_cast<uint8_t>(on ? 1 : 0)});
     }
 
     void set_sidetone(const std::string& level) {
@@ -186,11 +141,11 @@ public:
         else if (level == "medium") val = 2;
         else if (level == "low") val = 3;
         else throw std::runtime_error("Sidetone: off, low, medium, high");
-        setget(*config_.sidetone, {1, val});
+        setget(require(config_.sidetone, "sidetone"), {1, val});
     }
 
-    void power_off() { start(*config_.power, {0x00}); }
-    void pair()      { start(*config_.pairing, {0x01}); }
+    void power_off() { start(require(config_.power, "power"), {0x00}); }
+    void pair()      { start(require(config_.pairing, "pairing"), {0x01}); }
 
     std::vector<BmapResponse> send_raw(const std::vector<uint8_t>& data) {
         auto resp = transport_->send_recv_drain(data);
@@ -200,6 +155,11 @@ public:
 private:
     std::unique_ptr<Transport> transport_;
     DeviceConfig config_;
+
+    static Addr require(const std::optional<Addr>& opt, const char* name) {
+        if (!opt) throw std::runtime_error(std::string(name) + " not supported on this device");
+        return *opt;
+    }
 
     std::vector<uint8_t> get(Addr addr) {
         auto pkt = bmap_packet(addr.fblock, addr.func, Operator::Get);

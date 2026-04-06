@@ -77,3 +77,21 @@ TEST(parse_voice_prompts_enabled) {
     ASSERT_TRUE(on);
     ASSERT_EQ(lang, "US English");
 }
+
+TEST(mode_config_roundtrip_40) {
+    auto payload = build_mode_config_40(5, "MyMode", 8, 1, true, true, 0, 1);
+    ASSERT_EQ(payload.size(), 40u);
+    auto mc = parse_mode_config_qc_ultra2(payload);
+    ASSERT_TRUE(mc.has_value());
+    ASSERT_EQ(mc->mode_idx, 5);
+    ASSERT_EQ(mc->name, "MyMode");
+    ASSERT_EQ(mc->cnc_level, 8);
+    ASSERT_EQ(mc->spatial, 1u);
+    ASSERT_TRUE(mc->wind_block);
+    ASSERT_TRUE(mc->anc_toggle);
+}
+
+TEST(mode_config_too_short) {
+    auto mc = parse_mode_config_qc_ultra2({0, 0, 0});
+    ASSERT_FALSE(mc.has_value());
+}

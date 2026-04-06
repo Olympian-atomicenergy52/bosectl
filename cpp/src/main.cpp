@@ -77,8 +77,6 @@ int main(int argc, char** argv) {
     try {
         if (cmd == "status") {
             auto s = dev.status();
-            std::string cnc_bar(s.cnc_level, '\xe2'); // placeholder
-            // Build unicode bar
             std::string bar;
             for (int i = 0; i < s.cnc_level; i++) bar += "\xe2\x96\x88";
             for (int i = s.cnc_level; i < s.cnc_max; i++) bar += "\xe2\x96\x91";

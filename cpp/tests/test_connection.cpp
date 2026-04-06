@@ -97,3 +97,26 @@ TEST(qc35_no_eq) {
     ASSERT_FALSE(dev.has_feature("eq"));
     ASSERT_FALSE(dev.has_feature("mode_config"));
 }
+
+TEST(unsupported_feature_throws) {
+    auto t = std::make_unique<MockTransport>();
+    BmapConnection dev(std::move(t), qc35());
+    bool threw = false;
+    try { dev.eq(); } catch (const std::runtime_error& e) {
+        threw = true;
+        ASSERT_TRUE(std::string(e.what()).find("not supported") != std::string::npos);
+    }
+    ASSERT_TRUE(threw);
+}
+
+TEST(error_response_throws) {
+    auto t = std::make_unique<MockTransport>();
+    t->add(1, 5, 0x04, {5}); // ERROR: auth
+    BmapConnection dev(std::move(t), qc_ultra2());
+    bool threw = false;
+    try { dev.cnc(); } catch (const std::runtime_error& e) {
+        threw = true;
+        ASSERT_TRUE(std::string(e.what()).find("auth") != std::string::npos);
+    }
+    ASSERT_TRUE(threw);
+}
