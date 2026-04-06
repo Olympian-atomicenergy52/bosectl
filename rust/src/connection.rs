@@ -197,17 +197,67 @@ impl<T: Transport> BmapConnection<T> {
         })
     }
 
+    /// All mode configurations. Returns vec of ModeConfig.
+    pub fn modes(&self) -> BmapResult<Vec<ModeConfig>> {
+        let addr = self.addr(self.config.get_all_modes)?;
+        let mc_addr = self.addr(self.config.mode_config)?;
+        let parser = self.config.parse_mode_config
+            .ok_or_else(|| BmapError::Unsupported("Device has no mode config parser".into()))?;
+        let responses = self.start_drain(addr, &[])?;
+        let mut modes = Vec::new();
+        for resp in &responses {
+            if resp.fblock == mc_addr.0 && resp.func == mc_addr.1
+                && resp.op == Operator::Status && resp.payload.len() >= 6
+            {
+                if let Some(config) = parser(&resp.payload) {
+                    modes.push(config);
+                }
+            }
+        }
+        Ok(modes)
+    }
+
+    /// Check if the device supports a feature.
+    pub fn has_feature(&self, name: &str) -> bool {
+        match name {
+            "battery" => self.config.battery.is_some(),
+            "firmware" => self.config.firmware.is_some(),
+            "product_name" => self.config.product_name.is_some(),
+            "voice_prompts" => self.config.voice_prompts.is_some(),
+            "cnc" => self.config.cnc.is_some(),
+            "eq" => self.config.eq.is_some(),
+            "buttons" => self.config.buttons.is_some(),
+            "multipoint" => self.config.multipoint.is_some(),
+            "sidetone" => self.config.sidetone.is_some(),
+            "auto_pause" => self.config.auto_pause.is_some(),
+            "auto_answer" => self.config.auto_answer.is_some(),
+            "mode_config" => self.config.mode_config.is_some(),
+            _ => false,
+        }
+    }
+
     // ── Write Operations ────────────────────────────────────────────────────
 
-    /// Switch to a preset mode by name.
-    pub fn set_mode(&self, name: &str) -> BmapResult<()> {
+    /// Switch to a mode by name (preset or custom profile).
+    pub fn set_mode(&self, name: &str, announce: bool) -> BmapResult<()> {
         let addr = self.addr(self.config.current_mode)?;
-        let idx = self.config.preset_modes.iter()
-            .find(|&&(n, _)| n.eq_ignore_ascii_case(name))
-            .map(|&(_, ref m)| m.idx)
-            .ok_or_else(|| BmapError::InvalidArg(format!("Unknown mode: {}", name)))?;
 
-        let pkt = bmap_packet(addr.0, addr.1, Operator::Start, &[idx, 0]);
+        // Check presets first
+        let idx = if let Some(&(_, ref m)) = self.config.preset_modes.iter()
+            .find(|&&(n, _)| n.eq_ignore_ascii_case(name))
+        {
+            m.idx
+        } else {
+            // Look up custom profiles
+            let modes = self.modes()?;
+            modes.iter()
+                .find(|m| m.name.eq_ignore_ascii_case(name))
+                .map(|m| m.mode_idx)
+                .ok_or_else(|| BmapError::InvalidArg(format!("Unknown mode: {}", name)))?
+        };
+
+        let pkt = bmap_packet(addr.0, addr.1, Operator::Start,
+                              &[idx, if announce { 1 } else { 0 }]);
         let data = self.transport.send_recv(&pkt)?;
         let resp = parse_response(&data)
             .ok_or_else(|| BmapError::Timeout("No response".into()))?;
@@ -215,6 +265,52 @@ impl<T: Transport> BmapConnection<T> {
         if resp.op != Operator::Result {
             return Err(BmapError::Device { message: "Mode switch failed".into(), code: 0 });
         }
+        Ok(())
+    }
+
+    /// Set noise cancellation level (0-10).
+    ///
+    /// If on a preset mode, creates/reuses a custom profile.
+    pub fn set_cnc(&self, level: u8) -> BmapResult<()> {
+        if level > 10 {
+            return Err(BmapError::InvalidArg("CNC level must be 0-10".into()));
+        }
+        let (slot, config) = self.ensure_editable_profile()?;
+        self.write_mode_from_config(slot, &config, Some(level), None, None, None)?;
+        let addr = self.addr(self.config.current_mode)?;
+        self.start(addr, &[slot, 0])?;
+        Ok(())
+    }
+
+    /// Set spatial audio mode ("off"=0, "room"=1, "head"=2).
+    pub fn set_spatial(&self, mode: &str) -> BmapResult<()> {
+        let spatial = match mode {
+            "off" => 0u8,
+            "room" => 1,
+            "head" => 2,
+            _ => return Err(BmapError::InvalidArg("Spatial: off, room, head".into())),
+        };
+        let (slot, config) = self.ensure_editable_profile()?;
+        self.write_mode_from_config(slot, &config, None, Some(spatial), None, None)?;
+        let addr = self.addr(self.config.current_mode)?;
+        self.start(addr, &[slot, 0])?;
+        Ok(())
+    }
+
+    /// Toggle voice prompts. Preserves current language.
+    pub fn set_prompts(&self, enabled: bool) -> BmapResult<()> {
+        let addr = self.addr(self.config.voice_prompts)?;
+        let payload = self.get(addr)?;
+        let lang = payload.first().map_or(0, |b| b & 0x1F);
+        let byte0 = ((if enabled { 1u8 } else { 0 }) << 5) | lang;
+        self.setget(addr, &[byte0])?;
+        Ok(())
+    }
+
+    /// Toggle auto-answer calls.
+    pub fn set_auto_answer(&self, enabled: bool) -> BmapResult<()> {
+        let addr = self.addr(self.config.auto_answer)?;
+        self.setget(addr, &[if enabled { 1 } else { 0 }])?;
         Ok(())
     }
 
@@ -278,10 +374,114 @@ impl<T: Transport> BmapConnection<T> {
         Ok(())
     }
 
-    /// Send raw hex bytes. Returns all responses.
+    // ── Profile Management ────────────────────────────────────────────────
+
+    /// Create a custom profile in the first available slot. Returns slot index.
+    pub fn create_profile(&self, name: &str, cnc_level: u8, spatial: u8,
+                          wind_block: bool, anc_toggle: bool) -> BmapResult<u8> {
+        let modes = self.modes()?;
+        let slot = self.find_free_slot(&modes)?;
+        self.write_mode(slot, name, cnc_level, spatial, wind_block, anc_toggle, 0, 0)?;
+        Ok(slot)
+    }
+
+    /// Delete a custom profile by name.
+    pub fn delete_profile(&self, name: &str) -> BmapResult<()> {
+        let modes = self.modes()?;
+        let mc = modes.iter()
+            .find(|m| m.name.eq_ignore_ascii_case(name))
+            .ok_or_else(|| BmapError::InvalidArg(format!("Profile '{}' not found", name)))?;
+        if !mc.editable {
+            return Err(BmapError::InvalidArg(format!("Cannot delete preset '{}'", name)));
+        }
+        self.write_mode(mc.mode_idx, "None", 0, 0, false, false, 0, 0)?;
+        Ok(())
+    }
+
+    /// Send raw bytes. Returns all responses.
     pub fn send_raw(&self, data: &[u8]) -> BmapResult<Vec<BmapResponse>> {
         let resp = self.transport.send_recv_drain(data)?;
         Ok(parse_all_responses(&resp))
+    }
+
+    // ── Internal Helpers ────────────────────────────────────────────────────
+
+    fn ensure_editable_profile(&self) -> BmapResult<(u8, ModeConfig)> {
+        let modes = self.modes()?;
+        let current_idx = self.mode_idx()?;
+
+        // If current mode is editable, use it
+        if let Some(config) = modes.iter().find(|m| m.mode_idx == current_idx) {
+            if config.editable {
+                return Ok((current_idx, config.clone()));
+            }
+        }
+
+        // Look for existing "Custom" profile
+        if let Some(config) = modes.iter().find(|m| m.name.eq_ignore_ascii_case("custom") && m.editable) {
+            return Ok((config.mode_idx, config.clone()));
+        }
+
+        // Create a new one
+        let slot = self.find_free_slot(&modes)?;
+        let (cnc_cur, _) = self.cnc().unwrap_or((0, 10));
+        self.write_mode(slot, "Custom", cnc_cur, 0, true, true, 0, 0)?;
+
+        // Re-read to get the full config
+        let modes = self.modes()?;
+        let config = modes.iter()
+            .find(|m| m.mode_idx == slot)
+            .cloned()
+            .ok_or_else(|| BmapError::Device {
+                message: "Failed to read back custom profile".into(), code: 0,
+            })?;
+        Ok((slot, config))
+    }
+
+    fn find_free_slot(&self, modes: &[ModeConfig]) -> BmapResult<u8> {
+        for &slot in self.config.editable_slots {
+            match modes.iter().find(|m| m.mode_idx == slot) {
+                Some(m) if !m.configured && m.name.eq_ignore_ascii_case("none") => return Ok(slot),
+                Some(m) if !m.configured && m.name.is_empty() => return Ok(slot),
+                None => return Ok(slot),
+                _ => continue,
+            }
+        }
+        Err(BmapError::Device {
+            message: "No free profile slot available".into(), code: 0,
+        })
+    }
+
+    fn write_mode(&self, slot: u8, name: &str, cnc_level: u8, spatial: u8,
+                   wind_block: bool, anc_toggle: bool, prompt_b1: u8, prompt_b2: u8)
+                   -> BmapResult<()> {
+        let addr = self.addr(self.config.mode_config)?;
+        let payload = build_mode_config_40(
+            slot, name, cnc_level, spatial, wind_block, anc_toggle, prompt_b1, prompt_b2,
+        );
+        let data = self.transport.send_recv_drain(
+            &bmap_packet(addr.0, addr.1, Operator::SetGet, &payload)
+        )?;
+        let responses = parse_all_responses(&data);
+        if !responses.iter().any(|r| r.op == Operator::Status) {
+            return Err(BmapError::Device { message: "Mode config write failed".into(), code: 0 });
+        }
+        Ok(())
+    }
+
+    fn write_mode_from_config(&self, slot: u8, config: &ModeConfig,
+                               cnc: Option<u8>, spatial: Option<u8>,
+                               wind: Option<bool>, anc: Option<bool>) -> BmapResult<()> {
+        self.write_mode(
+            slot,
+            &config.name,
+            cnc.unwrap_or(config.cnc_level),
+            spatial.unwrap_or(config.spatial),
+            wind.unwrap_or(config.wind_block),
+            anc.unwrap_or(config.anc_toggle),
+            config.prompt_b1,
+            config.prompt_b2,
+        )
     }
 }
 
@@ -471,5 +671,76 @@ mod tests {
         assert_eq!(s.mode, "aware");
         assert!(s.eq.is_empty());
         assert_eq!(s.name, "");
+    }
+
+    #[test]
+    fn test_has_feature() {
+        let dev = mock_qc_ultra2();
+        assert!(dev.has_feature("battery"));
+        assert!(dev.has_feature("eq"));
+        assert!(dev.has_feature("mode_config"));
+        assert!(!dev.has_feature("nonexistent"));
+    }
+
+    #[test]
+    fn test_has_feature_qc35() {
+        let t = MockTransport::new();
+        let dev = BmapConnection::new(t, devices::qc35());
+        assert!(dev.has_feature("battery"));
+        assert!(!dev.has_feature("eq"));
+        assert!(!dev.has_feature("sidetone"));
+        assert!(!dev.has_feature("mode_config"));
+    }
+
+    #[test]
+    fn test_set_prompts() {
+        let mut t = MockTransport::new();
+        // GET returns current: enabled=true, lang=US English (0x21)
+        t.add(1, 3, 0x03, &[0x21, 0, 0, 0x81, 2, 0, 0]);
+        let dev = BmapConnection::new(t, devices::qc_ultra2());
+        // set_prompts reads current, then sends SETGET
+        // Since our mock returns the same response for any op, this should succeed
+        assert!(dev.set_prompts(false).is_ok());
+    }
+
+    #[test]
+    fn test_set_eq() {
+        let mut t = MockTransport::new();
+        t.add(1, 7, 0x03, &[0xf6, 0x0a, 0x03, 0x00]); // EQ response
+        let dev = BmapConnection::new(t, devices::qc_ultra2());
+        assert!(dev.set_eq(3, -2, 5).is_ok());
+        // Verify 3 packets were sent (one per band)
+        assert_eq!(dev.transport.sent.borrow().len(), 3);
+    }
+
+    #[test]
+    fn test_set_sidetone() {
+        let mut t = MockTransport::new();
+        t.add(1, 11, 0x03, &[0x01, 0x02, 0x0f]);
+        let dev = BmapConnection::new(t, devices::qc_ultra2());
+        assert!(dev.set_sidetone("low").is_ok());
+    }
+
+    #[test]
+    fn test_set_sidetone_invalid() {
+        let t = MockTransport::new();
+        let dev = BmapConnection::new(t, devices::qc_ultra2());
+        assert!(dev.set_sidetone("loud").is_err());
+    }
+
+    #[test]
+    fn test_set_mode_preset() {
+        let mut t = MockTransport::new();
+        t.add(31, 3, 0x06, &[0x01]); // RESULT for mode switch
+        let dev = BmapConnection::new(t, devices::qc_ultra2());
+        assert!(dev.set_mode("aware", false).is_ok());
+    }
+
+    #[test]
+    fn test_set_mode_unknown() {
+        let t = MockTransport::new();
+        let dev = BmapConnection::new(t, devices::qc_ultra2());
+        // "nonexistent" is not a preset, and modes() will fail (no mock for get_all_modes)
+        assert!(dev.set_mode("nonexistent", false).is_err());
     }
 }

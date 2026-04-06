@@ -1,6 +1,6 @@
 //! Device configurations.
 
-use crate::device::{Addr, DeviceConfig, DeviceInfo, PresetMode};
+use crate::device::{Addr, DeviceConfig, DeviceInfo, PresetMode, parse_mode_config_qc_ultra2};
 
 /// Bose QC Ultra 2 configuration.
 pub fn qc_ultra2() -> DeviceConfig {
@@ -34,10 +34,7 @@ pub fn qc_ultra2() -> DeviceConfig {
             ("cinema", PresetMode { idx: 3, description: "Cinema — spatial audio, fixed stage" }),
         ],
         editable_slots: &[4, 5, 6, 7, 8, 9, 10],
-        status_cnc_offset: 42,
-        status_spatial_offset: 44,
-        status_wind_offset: 45,
-        status_anc_offset: 47,
+        parse_mode_config: Some(parse_mode_config_qc_ultra2),
     }
 }
 
@@ -72,10 +69,7 @@ pub fn qc35() -> DeviceConfig {
             ("off", PresetMode { idx: 2, description: "Off — no noise cancellation" }),
         ],
         editable_slots: &[],
-        status_cnc_offset: 0,
-        status_spatial_offset: 0,
-        status_wind_offset: 0,
-        status_anc_offset: 0,
+        parse_mode_config: None,
     }
 }
 

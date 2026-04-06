@@ -101,14 +101,8 @@ pub struct DeviceConfig {
     pub favorites: Option<Addr>,
     pub preset_modes: &'static [(&'static str, PresetMode)],
     pub editable_slots: &'static [u8],
-    /// CNC level byte offset in the 48-byte ModeConfig STATUS payload.
-    pub status_cnc_offset: usize,
-    /// Spatial audio byte offset in the 48-byte ModeConfig STATUS payload.
-    pub status_spatial_offset: usize,
-    /// Wind block byte offset.
-    pub status_wind_offset: usize,
-    /// ANC toggle byte offset.
-    pub status_anc_offset: usize,
+    /// Device-specific ModeConfig STATUS parser. None if device has no mode config.
+    pub parse_mode_config: Option<fn(&[u8]) -> Option<ModeConfig>>,
 }
 
 // ── Shared Parsers ──────────────────────────────────────────────────────────
@@ -255,8 +249,11 @@ pub fn parse_buttons(payload: &[u8]) -> Option<ButtonMapping> {
     })
 }
 
-/// Parse a 48-byte ModeConfig STATUS response.
-pub fn parse_mode_config_48(payload: &[u8], config: &DeviceConfig) -> Option<ModeConfig> {
+/// Parse a 48-byte ModeConfig STATUS response (QC Ultra 2 / newer firmware).
+///
+/// STATUS offsets: CNC=42, spatial=44, wind=45, anc=47.
+/// This function is passed as `parse_mode_config` in the QC Ultra 2 config.
+pub fn parse_mode_config_qc_ultra2(payload: &[u8]) -> Option<ModeConfig> {
     if payload.len() < 6 {
         return None;
     }
@@ -275,10 +272,10 @@ pub fn parse_mode_config_48(payload: &[u8], config: &DeviceConfig) -> Option<Mod
         Some(ModeConfig {
             mode_idx,
             name,
-            cnc_level: payload[config.status_cnc_offset],
-            spatial: payload[config.status_spatial_offset],
-            wind_block: payload[config.status_wind_offset] != 0,
-            anc_toggle: payload[config.status_anc_offset] != 0,
+            cnc_level: payload[42],
+            spatial: payload[44],
+            wind_block: payload[45] != 0,
+            anc_toggle: payload[47] != 0,
             editable,
             configured,
             prompt_b1,

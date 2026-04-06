@@ -77,14 +77,7 @@ impl RfcommTransport {
             };
 
             // Set connect timeout
-            let timeout = libc::timeval { tv_sec: 3, tv_usec: 0 };
-            libc::setsockopt(
-                owned.as_raw_fd(),
-                libc::SOL_SOCKET,
-                libc::SO_SNDTIMEO,
-                &timeout as *const _ as *const libc::c_void,
-                std::mem::size_of::<libc::timeval>() as u32,
-            );
+            set_sock_timeout(owned.as_raw_fd(), libc::SO_SNDTIMEO, Duration::from_secs(3))?;
 
             let ret = libc::connect(
                 owned.as_raw_fd(),
@@ -98,14 +91,7 @@ impl RfcommTransport {
             }
 
             // Set recv timeout
-            let timeout = libc::timeval { tv_sec: 3, tv_usec: 0 };
-            libc::setsockopt(
-                owned.as_raw_fd(),
-                libc::SOL_SOCKET,
-                libc::SO_RCVTIMEO,
-                &timeout as *const _ as *const libc::c_void,
-                std::mem::size_of::<libc::timeval>() as u32,
-            );
+            set_sock_timeout(owned.as_raw_fd(), libc::SO_RCVTIMEO, Duration::from_secs(3))?;
 
             Ok(Self { fd: owned })
         }
@@ -157,20 +143,30 @@ impl RfcommTransport {
     }
 
     fn set_recv_timeout(&self, duration: Duration) {
-        let timeout = libc::timeval {
-            tv_sec: duration.as_secs() as _,
-            tv_usec: duration.subsec_micros() as _,
-        };
-        unsafe {
-            libc::setsockopt(
-                self.fd.as_raw_fd(),
-                libc::SOL_SOCKET,
-                libc::SO_RCVTIMEO,
-                &timeout as *const _ as *const libc::c_void,
-                std::mem::size_of::<libc::timeval>() as u32,
-            );
-        }
+        // Best-effort — drain loop still works if this fails.
+        let _ = unsafe { set_sock_timeout(self.fd.as_raw_fd(), libc::SO_RCVTIMEO, duration) };
     }
+}
+
+/// Set a socket timeout, checking the return value.
+unsafe fn set_sock_timeout(fd: i32, opt: i32, duration: Duration) -> BmapResult<()> {
+    let timeout = libc::timeval {
+        tv_sec: duration.as_secs() as _,
+        tv_usec: duration.subsec_micros() as _,
+    };
+    let ret = libc::setsockopt(
+        fd,
+        libc::SOL_SOCKET,
+        opt,
+        &timeout as *const _ as *const libc::c_void,
+        std::mem::size_of::<libc::timeval>() as u32,
+    );
+    if ret < 0 {
+        return Err(BmapError::Connection(format!(
+            "setsockopt failed: {}", io::Error::last_os_error()
+        )));
+    }
+    Ok(())
 }
 
 impl Transport for RfcommTransport {

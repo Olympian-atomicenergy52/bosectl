@@ -37,20 +37,42 @@ fn main() {
         "battery" => dev.battery().map(|b| println!("{}", b)),
         "current" => dev.mode().map(|m| println!("{}", m)),
         "quiet" | "aware" | "immersion" | "cinema" => {
-            dev.set_mode(&cmd).map(|_| println!("OK: {}", cmd))
+            dev.set_mode(&cmd, false).map(|_| println!("OK: {}", cmd))
         }
         "cnc" => {
             if args.len() < 3 {
                 dev.cnc().map(|(cur, max)| println!("{}/{}", cur, max))
             } else {
-                let _level: u8 = args[2].parse().unwrap_or_else(|_| {
+                let level: u8 = args[2].parse().unwrap_or_else(|_| {
                     eprintln!("CNC level must be 0-10");
                     process::exit(1);
                 });
-                // CNC set requires mode config manipulation — just read for now
-                eprintln!("CNC set not yet implemented in Rust CLI");
-                Ok(())
+                dev.set_cnc(level).map(|_| println!("CNC: {}/10", level))
             }
+        }
+        "spatial" => {
+            if args.len() < 3 {
+                eprintln!("Usage: bmapctl spatial <off|room|head>");
+                process::exit(1);
+            }
+            dev.set_spatial(&args[2]).map(|_| println!("Spatial: {}", args[2]))
+        }
+        "autoanswer" => {
+            if args.len() > 2 {
+                let on = matches!(args[2].as_str(), "on" | "1" | "true" | "yes");
+                if let Err(e) = dev.set_auto_answer(on) {
+                    return err_exit(&e);
+                }
+            }
+            // Read back — auto_answer uses parse_bool
+            dev.auto_pause().map(|a| println!("{}", if a { "on" } else { "off" }))
+        }
+        "switch" => {
+            if args.len() < 3 {
+                eprintln!("Usage: bmapctl switch <name>");
+                process::exit(1);
+            }
+            dev.set_mode(&args[2], false).map(|_| println!("OK: {}", args[2]))
         }
         "eq" => {
             if args.len() < 5 {
