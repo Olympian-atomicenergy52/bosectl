@@ -227,4 +227,13 @@ mod tests {
         assert!(s.contains("ERROR"));
         assert!(s.contains("auth"));
     }
+
+    #[test]
+    fn test_fmt_error_invalid_transition() {
+        let resp = BmapResponse {
+            fblock: 3, func: 2, op: Operator::Error, payload: vec![15],
+        };
+        let s = resp.fmt();
+        assert!(s.contains("InvalidTransition"));
+    }
 }
