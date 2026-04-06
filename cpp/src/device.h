@@ -212,9 +212,16 @@ inline std::optional<ButtonMapping> parse_buttons(const std::vector<uint8_t>& p)
     auto act_name = [](uint8_t a) -> std::string {
         switch (a) {
             case 0: return "NotConfigured"; case 1: return "VPA";
-            case 2: return "ANC"; case 4: return "PlayPause";
-            case 8: return "SwitchDevice"; case 11: return "TrackBack";
-            case 14: return "Disabled"; case 17: return "ModesCarousel";
+            case 2: return "ANC"; case 3: return "BatteryLevel";
+            case 4: return "PlayPause"; case 5: return "IncreaseCNC";
+            case 6: return "DecreaseCNC"; case 7: return "ToggleWakeWord";
+            case 8: return "SwitchDevice"; case 9: return "ConversationMode";
+            case 10: return "TrackForward"; case 11: return "TrackBack";
+            case 12: return "FetchNotifications"; case 13: return "WindMode";
+            case 14: return "Disabled"; case 15: return "ClientInteraction";
+            case 16: return "SpotifyGo"; case 17: return "ModesCarousel";
+            case 19: return "SpatialAudioMode"; case 20: return "LineInSwitch";
+            case 21: return "Linking";
             default: return "Unknown";
         }
     };
@@ -238,7 +245,11 @@ inline std::optional<uint8_t> action_id_from_name(const std::string& name) {
     if (name == "DecreaseCNC") return 6; if (name == "ToggleWakeWord") return 7;
     if (name == "SwitchDevice") return 8; if (name == "ConversationMode") return 9;
     if (name == "TrackForward") return 10; if (name == "TrackBack") return 11;
-    if (name == "Disabled") return 14; if (name == "ModesCarousel") return 17;
+    if (name == "FetchNotifications") return 12; if (name == "WindMode") return 13;
+    if (name == "Disabled") return 14; if (name == "ClientInteraction") return 15;
+    if (name == "SpotifyGo") return 16; if (name == "ModesCarousel") return 17;
+    if (name == "SpatialAudioMode") return 19; if (name == "LineInSwitch") return 20;
+    if (name == "Linking") return 21;
     return std::nullopt;
 }
 
