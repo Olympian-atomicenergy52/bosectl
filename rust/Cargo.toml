@@ -4,5 +4,11 @@ version = "0.1.0"
 edition = "2021"
 description = "Control Bluetooth audio devices over the BMAP protocol"
 license = "MIT"
+readme = "../README.md"
 
 [dependencies]
+libc = "0.2"
+
+[[bin]]
+name = "bmapctl"
+path = "src/main.rs"
