@@ -142,7 +142,7 @@ fn err_exit(e: &BmapError) {
     process::exit(1);
 }
 
-fn cmd_status(dev: &bmap::BmapConnection) -> Result<(), BmapError> {
+fn cmd_status(dev: &bmap::BmapConnection<impl bmap::Transport>) -> Result<(), BmapError> {
     let s = dev.status()?;
     let cnc_bar: String = "█".repeat(s.cnc_level as usize)
         + &"░".repeat((s.cnc_max - s.cnc_level) as usize);
@@ -164,6 +164,7 @@ fn cmd_status(dev: &bmap::BmapConnection) -> Result<(), BmapError> {
 }
 
 fn hex_to_bytes(hex: &str) -> Vec<u8> {
+    let hex = if hex.len() % 2 != 0 { &hex[..hex.len() - 1] } else { hex };
     (0..hex.len())
         .step_by(2)
         .filter_map(|i| u8::from_str_radix(&hex[i..i + 2], 16).ok())

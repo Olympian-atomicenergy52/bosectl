@@ -4,7 +4,7 @@
 //! Bluetooth library needed. Mirrors what Python's socket.AF_BLUETOOTH
 //! does under the hood.
 
-use std::io::{self, Read, Write};
+use std::io;
 use std::os::fd::{FromRawFd, OwnedFd, AsRawFd};
 use std::time::Duration;
 
@@ -16,7 +16,12 @@ const BTPROTO_RFCOMM: i32 = 3;
 /// RFCOMM channel for BMAP protocol.
 pub const BMAP_CHANNEL: u8 = 2;
 
-/// Kernel sockaddr_rc structure.
+/// Kernel sockaddr_rc structure (matches `struct sockaddr_rc` in bluetooth.h).
+///
+/// Note: The kernel struct is `__attribute__((packed))` at 9 bytes, but
+/// `repr(C)` on x86-64 produces 10 bytes (1 byte padding after rc_channel
+/// for u16 alignment). We pass `size_of::<SockaddrRc>()` to connect(),
+/// and the kernel accepts both 9 and 10 for BTPROTO_RFCOMM.
 #[repr(C)]
 struct SockaddrRc {
     rc_family: u16,
@@ -36,6 +41,14 @@ fn parse_mac(mac: &str) -> BmapResult<[u8; 6]> {
             .map_err(|_| BmapError::Connection(format!("Invalid MAC byte: {}", part)))?;
     }
     Ok(addr)
+}
+
+/// Transport abstraction for sending/receiving BMAP packets.
+///
+/// Implemented by `RfcommTransport` for real Bluetooth. Can be mocked for testing.
+pub trait Transport {
+    fn send_recv(&self, packet: &[u8]) -> BmapResult<Vec<u8>>;
+    fn send_recv_drain(&self, packet: &[u8]) -> BmapResult<Vec<u8>>;
 }
 
 /// Raw RFCOMM Bluetooth socket transport.
@@ -98,49 +111,47 @@ impl RfcommTransport {
         }
     }
 
-    /// Send a packet and receive the response.
-    pub fn send_recv(&self, packet: &[u8]) -> BmapResult<Vec<u8>> {
-        self.send_recv_inner(packet, false)
-    }
-
-    /// Send a packet and drain all responses (for async multi-packet replies).
-    pub fn send_recv_drain(&self, packet: &[u8]) -> BmapResult<Vec<u8>> {
-        self.send_recv_inner(packet, true)
-    }
-
     fn send_recv_inner(&self, packet: &[u8], drain: bool) -> BmapResult<Vec<u8>> {
-        // Send
-        let mut file = unsafe {
-            // Create a non-owning File for I/O (won't close fd on drop)
-            std::fs::File::from_raw_fd(self.fd.as_raw_fd())
-        };
-        file.write_all(packet)
-            .map_err(|e| BmapError::Connection(format!("Send failed: {}", e)))?;
+        let fd = self.fd.as_raw_fd();
 
-        // Brief delay for device to process
+        // Send — use libc::send directly to avoid fd ownership issues.
+        let sent = unsafe {
+            libc::send(fd, packet.as_ptr() as *const libc::c_void, packet.len(), 0)
+        };
+        if sent < 0 {
+            return Err(BmapError::Connection(format!(
+                "Send failed: {}", io::Error::last_os_error()
+            )));
+        }
+
+        // Brief delay for device to process (protocol-required).
         std::thread::sleep(Duration::from_millis(200));
 
         // Receive
         let mut buf = [0u8; 4096];
-        let n = file.read(&mut buf)
-            .map_err(|e| BmapError::Timeout(format!("No response: {}", e)))?;
-        let mut data = buf[..n].to_vec();
+        let n = unsafe {
+            libc::recv(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len(), 0)
+        };
+        if n <= 0 {
+            return Err(BmapError::Timeout(format!(
+                "No response: {}", io::Error::last_os_error()
+            )));
+        }
+        let mut data = buf[..n as usize].to_vec();
 
         if drain {
-            // Switch to short timeout and keep reading
             self.set_recv_timeout(Duration::from_millis(500));
             loop {
-                match file.read(&mut buf) {
-                    Ok(0) => break,
-                    Ok(n) => data.extend_from_slice(&buf[..n]),
-                    Err(_) => break,
+                let n = unsafe {
+                    libc::recv(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len(), 0)
+                };
+                if n <= 0 {
+                    break;
                 }
+                data.extend_from_slice(&buf[..n as usize]);
             }
             self.set_recv_timeout(Duration::from_secs(3));
         }
-
-        // Prevent the File from closing our fd
-        std::mem::forget(file);
 
         Ok(data)
     }
@@ -159,6 +170,16 @@ impl RfcommTransport {
                 std::mem::size_of::<libc::timeval>() as u32,
             );
         }
+    }
+}
+
+impl Transport for RfcommTransport {
+    fn send_recv(&self, packet: &[u8]) -> BmapResult<Vec<u8>> {
+        self.send_recv_inner(packet, false)
+    }
+
+    fn send_recv_drain(&self, packet: &[u8]) -> BmapResult<Vec<u8>> {
+        self.send_recv_inner(packet, true)
     }
 }
 

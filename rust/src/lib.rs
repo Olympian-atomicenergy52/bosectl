@@ -19,15 +19,16 @@ pub mod connection;
 pub mod discovery;
 
 pub use connection::BmapConnection;
+pub use transport::Transport;
 pub use device::{DeviceConfig, DeviceStatus, ModeConfig, EqBand, ButtonMapping};
 pub use error::{BmapError, BmapResult};
 pub use protocol::{Operator, BmapResponse};
 
-/// Connect to a BMAP device.
+/// Connect to a BMAP device over Bluetooth RFCOMM.
 ///
 /// - `mac`: Bluetooth MAC address. Auto-detected if None.
 /// - `device_type`: Device type string (e.g. "qc_ultra2").
-pub fn connect(mac: Option<&str>, device_type: &str) -> BmapResult<BmapConnection> {
+pub fn connect(mac: Option<&str>, device_type: &str) -> BmapResult<BmapConnection<transport::RfcommTransport>> {
     let mac = match mac {
         Some(m) => m.to_string(),
         None => discovery::find_bmap_device()
