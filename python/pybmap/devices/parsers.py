@@ -1,0 +1,228 @@
+"""Shared payload parsers and builders for BMAP devices.
+
+These functions handle common BMAP payload formats that are shared across
+device generations. Device-specific formats (like ModeConfig, which has
+different byte layouts per firmware) are defined in the device config's
+'parsers' override dict.
+"""
+
+from ..constants import (
+    PROMPTS, BUTTON_IDS, BUTTON_EVENTS, ACTION_MODES, VOICE_LANGUAGES,
+)
+from ..protocol import encode_mode_name
+from ..types import ModeConfig, EqBand, ButtonMapping
+
+
+# ── Standard Parsers ─────────────────────────────────────────────────────────
+
+def parse_battery(payload):
+    """Parse battery level. Returns percentage int."""
+    if payload:
+        return payload[0]
+    return None
+
+
+def parse_firmware(payload):
+    """Parse firmware version string."""
+    return payload.decode("ascii", errors="replace")
+
+
+def parse_product_name(payload):
+    """Parse device name. First byte is a flag, name starts at byte 1."""
+    return payload[1:].decode("utf-8", errors="replace")
+
+
+def parse_cnc(payload):
+    """Parse CNC GET response. Returns (current, max) tuple."""
+    if len(payload) >= 3:
+        return (payload[1], payload[0] - 1)
+    return (0, 10)
+
+
+def parse_eq(payload):
+    """Parse EQ GET response. 4-byte groups: [min, max, current, band_id].
+
+    Returns list of EqBand namedtuples.
+    """
+    band_names = {0: "Bass", 1: "Mid", 2: "Treble"}
+    bands = []
+    for i in range(0, len(payload), 4):
+        if i + 3 >= len(payload):
+            break
+        min_val = payload[i]
+        max_val = payload[i + 1]
+        cur = payload[i + 2]
+        cur_signed = cur if cur < 128 else cur - 256
+        band_id = payload[i + 3]
+        bands.append(EqBand(
+            band_id=band_id,
+            name=band_names.get(band_id, "Band%d" % band_id),
+            min_val=min_val if min_val < 128 else min_val - 256,
+            max_val=max_val if max_val < 128 else max_val - 256,
+            current=cur_signed,
+        ))
+    return bands
+
+
+def parse_buttons(payload):
+    """Parse button config GET response. Returns ButtonMapping or None."""
+    if len(payload) < 3:
+        return None
+
+    bid = payload[0]
+    evt = payload[1]
+    mode = payload[2]
+
+    supported = []
+    if len(payload) > 3:
+        for byte_idx, b in enumerate(payload[3:7] if len(payload) >= 7 else payload[3:]):
+            for bit in range(8):
+                mode_id = byte_idx * 8 + bit
+                if b & (1 << bit) and mode_id > 0:
+                    supported.append(ACTION_MODES.get(mode_id, "unknown(%d)" % mode_id))
+
+    return ButtonMapping(
+        button_id=bid,
+        button_name=BUTTON_IDS.get(bid, "0x%02x" % bid),
+        event=evt,
+        event_name=BUTTON_EVENTS.get(evt, str(evt)),
+        action=mode,
+        action_name=ACTION_MODES.get(mode, str(mode)),
+        supported_actions=supported,
+        raw=payload,
+    )
+
+
+def parse_multipoint(payload):
+    """Parse multipoint GET. Bit 1 (0x02) = enabled."""
+    if payload:
+        return bool(payload[0] & 0x02)
+    return False
+
+
+def parse_bool(payload):
+    """Parse a simple boolean GET response (byte 0)."""
+    if payload:
+        return bool(payload[0])
+    return False
+
+
+def parse_sidetone(payload):
+    """Parse sidetone GET. Returns level int (byte 1)."""
+    if len(payload) >= 2:
+        return payload[1]
+    return 0
+
+
+def parse_voice_prompts(payload):
+    """Parse voice prompts GET. Bit 5 = enabled, bits 4-0 = language ID.
+
+    Returns (enabled, language_id) tuple.
+    """
+    if payload:
+        enabled = bool((payload[0] >> 5) & 1)
+        lang = payload[0] & 0x1F
+        return (enabled, lang)
+    return (False, 0)
+
+
+# ── Standard Builders ────────────────────────────────────────────────────────
+
+def build_eq_band(value, band_id):
+    """Build a single EQ band SETGET payload. Returns 2 bytes."""
+    return bytes([value & 0xFF, band_id])
+
+
+def build_toggle(enabled):
+    """Build a boolean toggle SETGET payload."""
+    return bytes([1 if enabled else 0])
+
+
+def build_sidetone(level):
+    """Build sidetone SETGET payload. [persist_flag, level]."""
+    return bytes([1, level])
+
+
+def build_voice_prompts(enabled, language_id):
+    """Build voice prompts SETGET payload."""
+    byte0 = ((1 if enabled else 0) << 5) | (language_id & 0x1F)
+    return bytes([byte0])
+
+
+# ── ModeConfig Parsers/Builders (device-specific, but share common patterns)
+
+def parse_mode_config_48(payload):
+    """Parse ModeConfig STATUS (48 bytes) — QC Ultra 2 / newer firmware.
+
+    STATUS layout:
+        [0]     modeIndex
+        [1:3]   voicePrompt
+        [3:6]   flags: [3]=editable, [4]=configured, [5]=unknown
+        [6:38]  modeName (32 bytes)
+        [38:40] unknown
+        [40:42] unknown
+        [42]    cncLevel
+        [43]    autoCNC
+        [44]    spatialAudio
+        [45]    windBlock
+        [46]    unknown
+        [47]    ancToggle
+    """
+    if len(payload) < 6:
+        return None
+
+    mode_idx = payload[0]
+    prompt_b1, prompt_b2 = payload[1], payload[2]
+    prompt_name = PROMPTS.get((prompt_b1, prompt_b2), "(%d,%d)" % (prompt_b1, prompt_b2))
+
+    if len(payload) >= 48:
+        editable = bool(payload[3])
+        configured = bool(payload[4])
+        flags = "%02x %02x %02x" % (payload[3], payload[4], payload[5])
+        name = payload[6:38].split(b"\x00", 1)[0].decode("utf-8", errors="replace")
+        return ModeConfig(
+            mode_idx=mode_idx, prompt=prompt_name,
+            prompt_bytes=(prompt_b1, prompt_b2), name=name,
+            cnc_level=payload[42], auto_cnc=bool(payload[43]),
+            spatial=payload[44], wind_block=bool(payload[45]),
+            anc_toggle=bool(payload[47]),
+            editable=editable, configured=configured, flags=flags, raw=payload,
+        )
+    elif len(payload) >= 40:
+        # SETGET echo format (no flag bytes)
+        name = payload[3:35].split(b"\x00", 1)[0].decode("utf-8", errors="replace")
+        return ModeConfig(
+            mode_idx=mode_idx, prompt=prompt_name,
+            prompt_bytes=(prompt_b1, prompt_b2), name=name,
+            cnc_level=payload[35], auto_cnc=bool(payload[36]),
+            spatial=payload[37], wind_block=bool(payload[38]),
+            anc_toggle=bool(payload[39]),
+            editable=True, configured=True, flags="", raw=payload,
+        )
+    else:
+        name = (payload[3:35] if len(payload) >= 35 else payload[3:])
+        name = name.split(b"\x00", 1)[0].decode("utf-8", errors="replace")
+        return ModeConfig(
+            mode_idx=mode_idx, prompt=prompt_name,
+            prompt_bytes=(prompt_b1, prompt_b2), name=name,
+            cnc_level=0, auto_cnc=False, spatial=0,
+            wind_block=False, anc_toggle=False,
+            editable=False, configured=False, flags="", raw=payload,
+        )
+
+
+def build_mode_config_40(mode_idx, name, cnc_level=0, auto_cnc=False,
+                         spatial=0, wind_block=1, anc_toggle=1,
+                         prompt_b1=0, prompt_b2=0):
+    """Build 40-byte ModeConfig SETGET payload — QC Ultra 2 / newer firmware."""
+    payload = bytearray()
+    payload.append(mode_idx)
+    payload.append(prompt_b1)
+    payload.append(prompt_b2)
+    payload.extend(encode_mode_name(name))
+    payload.append(cnc_level)
+    payload.append(1 if auto_cnc else 0)
+    payload.append(spatial)
+    payload.append(1 if wind_block else 0)
+    payload.append(1 if anc_toggle else 0)
+    return bytes(payload)

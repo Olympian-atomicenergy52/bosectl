@@ -1,4 +1,11 @@
 __pycache__/
 *.pyc
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+.pytest_cache/
 linkedin-article.md
 article-techy.md
+target/
