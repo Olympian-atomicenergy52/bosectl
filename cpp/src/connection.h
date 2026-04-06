@@ -68,6 +68,7 @@ public:
         if (name == "mode_config") return config_.mode_config.has_value();
         if (name == "auto_pause") return config_.auto_pause.has_value();
         if (name == "auto_answer") return config_.auto_answer.has_value();
+        if (name == "anr") return config_.anr.has_value();
         return false;
     }
 

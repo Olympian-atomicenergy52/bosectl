@@ -61,6 +61,7 @@ pub fn error_name(code: u8) -> &'static str {
         8 => "Runtime",
         9 => "Timeout",
         10 => "InvalidState",
+        15 => "InvalidTransition",
         20 => "InsecureTransport",
         _ => "Unknown",
     }
