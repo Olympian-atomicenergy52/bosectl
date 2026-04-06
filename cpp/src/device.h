@@ -197,6 +197,7 @@ inline std::optional<ButtonMapping> parse_buttons(const std::vector<uint8_t>& p)
         switch (id) {
             case 0: return "DistalCnc"; case 2: return "Vpa";
             case 3: return "RightShortcut"; case 4: return "LeftShortcut";
+            case 16: return "Action";
             case 128: return "Shortcut"; default: return "Unknown";
         }
     };
@@ -222,6 +223,23 @@ inline std::optional<ButtonMapping> parse_buttons(const std::vector<uint8_t>& p)
     btn.event_name = evt_name(btn.event);
     btn.action_name = act_name(btn.action);
     return btn;
+}
+
+// ── Button Helpers ──────────────────────────────────────────────────────────
+
+inline std::vector<uint8_t> build_buttons(uint8_t button_id, uint8_t event, uint8_t action) {
+    return {button_id, event, action};
+}
+
+inline std::optional<uint8_t> action_id_from_name(const std::string& name) {
+    if (name == "NotConfigured") return 0; if (name == "VPA") return 1;
+    if (name == "ANC") return 2; if (name == "BatteryLevel") return 3;
+    if (name == "PlayPause") return 4; if (name == "IncreaseCNC") return 5;
+    if (name == "DecreaseCNC") return 6; if (name == "ToggleWakeWord") return 7;
+    if (name == "SwitchDevice") return 8; if (name == "ConversationMode") return 9;
+    if (name == "TrackForward") return 10; if (name == "TrackBack") return 11;
+    if (name == "Disabled") return 14; if (name == "ModesCarousel") return 17;
+    return std::nullopt;
 }
 
 // ── QC Ultra 2 Mode Config Parser ───────────────────────────────────────────
