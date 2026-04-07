@@ -9,7 +9,7 @@
 using namespace bmap;
 
 static void usage() {
-    std::cout << "bmapctl — Control BMAP Bluetooth audio devices\n\n"
+    std::cout << "bmapctl " BMAP_VERSION " (" GIT_HASH ") — Control BMAP Bluetooth audio devices\n\n"
               << "Usage: bmapctl <command> [args...]\n\n"
               << "  status              Show all settings\n"
               << "  battery             Battery percentage\n"
