@@ -12,8 +12,21 @@ add_library(bmap STATIC
 )
 target_include_directories(bmap PUBLIC src)
 
+# Git hash for version string
+execute_process(
+    COMMAND git rev-parse --short HEAD
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/..
+    OUTPUT_VARIABLE GIT_HASH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+if(NOT GIT_HASH)
+    set(GIT_HASH "unknown")
+endif()
+
 # CLI
 add_executable(bmapctl src/main.cpp)
+target_compile_definitions(bmapctl PRIVATE GIT_HASH="${GIT_HASH}" BMAP_VERSION="${PROJECT_VERSION}")
 target_link_libraries(bmapctl PRIVATE bmap bluetooth)
 
 # Tests

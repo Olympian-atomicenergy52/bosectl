@@ -258,7 +258,8 @@ fn hex_to_bytes(hex: &str) -> Vec<u8> {
 }
 
 fn usage() {
-    println!("bmapctl — Control BMAP Bluetooth audio devices");
+    println!("bmapctl {} ({}) — Control BMAP Bluetooth audio devices",
+             env!("CARGO_PKG_VERSION"), env!("GIT_HASH"));
     println!();
     println!("Usage: bmapctl <command> [args...]");
     println!();

@@ -1,6 +1,7 @@
 """bosectl CLI — thin wrapper around the pybmap library."""
 
 import os
+import subprocess
 import sys
 
 import pybmap
@@ -32,9 +33,21 @@ _BANNER_LINES = [
     r" / /_/ / /_/ (__  )  __/ /__/ /_/ /  ",
     r"/_.___/\____/____/\___/\___/\__/_/   ",
 ]
+def _git_hash():
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=2,
+        )
+        return result.stdout.strip() or "unknown"
+    except Exception:
+        return "unknown"
+
 BANNER = "\n".join(
     "%s%s%s%s" % (C_BOLD, _GRAD[i], line, C_RESET) for i, line in enumerate(_BANNER_LINES)
-) + "\n%s  Bose headphones — no app, no cloud, no account%s\n" % (C_DIM, C_RESET)
+) + "\n%s  %s (%s) — no app, no cloud, no account%s\n" % (
+    C_DIM, pybmap.__version__, _git_hash(), C_RESET
+)
 
 
 def row(label, value, color=None):
