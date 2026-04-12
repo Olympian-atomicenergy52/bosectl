@@ -285,13 +285,21 @@ class BmapConnection:
     def set_cnc(self, level):
         """Set noise cancellation level (0-10).
 
-        If currently on a preset mode, creates/reuses a custom profile.
+        Scale is inverted: 0 = maximum ANC (blocks most outside sounds),
+        10 = most ambient pass-through. The effect is only audible when
+        anc_toggle=on AND wind_block=off — wind block masks CNC changes.
         """
         if not 0 <= level <= 10:
             raise ValueError("CNC level must be 0-10, got %d" % level)
-        slot, config = self._ensure_editable_profile()
-        self._write_mode_from_config(slot, config, cnc_level=level)
-        self._activate_slot(slot)
+        self._update_audio_settings(cnc_level=level)
+
+    def set_anc(self, enabled):
+        """Toggle Active Noise Cancellation on/off (bool)."""
+        self._update_audio_settings(anc_toggle=bool(enabled))
+
+    def set_wind(self, enabled):
+        """Toggle Wind Block on/off (bool)."""
+        self._update_audio_settings(wind_block=bool(enabled))
 
     def set_anr(self, level):
         """Set Active Noise Reduction mode (off/high/wind/low).
@@ -319,10 +327,25 @@ class BmapConnection:
         """Set spatial audio mode ("off", "room", or "head")."""
         if mode not in SPATIAL_VALUES:
             raise ValueError("Spatial mode must be off, room, or head")
-        spatial = SPATIAL_VALUES[mode]
-        slot, config = self._ensure_editable_profile()
-        self._write_mode_from_config(slot, config, spatial=spatial)
-        self._activate_slot(slot)
+        self._update_audio_settings(spatial=SPATIAL_VALUES[mode])
+
+    def _update_audio_settings(self, **overrides):
+        """Read current audio settings and write back with overrides.
+
+        Uses AudioModesSettingsConfig [31.10] SETGET — the same register
+        the Bose app writes to. Unauthenticated on QC Ultra 2+.
+        """
+        if not self.has_feature("audio_settings"):
+            raise BmapError("Device does not support direct audio settings")
+        settings = self._get("audio_settings")
+        feat = self._feature("audio_settings")
+        builder = feat["builder"]
+        self._setget("audio_settings", builder(
+            cnc_level=overrides.get("cnc_level", settings.cnc_level),
+            spatial=overrides.get("spatial", settings.spatial),
+            wind_block=overrides.get("wind_block", settings.wind_block),
+            anc_toggle=overrides.get("anc_toggle", settings.anc_toggle),
+        ))
 
     def set_name(self, new_name):
         """Set device Bluetooth name (any UTF-8 string)."""
@@ -486,20 +509,6 @@ class BmapConnection:
         return name in self._device.FEATURES
 
     # ── Internal Helpers ─────────────────────────────────────────────────────
-
-    def _activate_slot(self, slot):
-        """Switch to a slot, bouncing through another mode if already active.
-
-        The headphone won't re-apply a mode config if it thinks it's already
-        on that mode. When we've just written new config to the current slot,
-        we need to switch away and back to force it to reload.
-        """
-        current = self.mode_idx()
-        if current == slot:
-            # Bounce through Quiet (idx 0) — any preset works
-            bounce = 0 if slot != 0 else 1
-            self._start("current_mode", bytes([bounce, 0]))
-        self._start("current_mode", bytes([slot, 0]))
 
     def _ensure_editable_profile(self):
         """Ensure we're on an editable profile. Returns (slot_idx, ModeConfig).

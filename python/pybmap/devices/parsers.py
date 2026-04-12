@@ -11,7 +11,7 @@ from ..constants import (
     SOURCE_TYPES,
 )
 from ..protocol import encode_mode_name
-from ..types import ModeConfig, EqBand, ButtonMapping, AudioSource
+from ..types import ModeConfig, EqBand, ButtonMapping, AudioSource, AudioSettings
 
 
 # ── Standard Parsers ─────────────────────────────────────────────────────────
@@ -308,6 +308,31 @@ def parse_mode_config_48(payload):
             wind_block=False, anc_toggle=False,
             editable=False, configured=False, flags="", raw=payload,
         )
+
+
+def parse_audio_settings(payload):
+    """Parse AudioModesSettingsConfig [31.10] STATUS response (5 bytes)."""
+    if len(payload) < 5:
+        return None
+    return AudioSettings(
+        cnc_level=payload[0],
+        auto_cnc=payload[1] != 0,
+        spatial=payload[2],
+        wind_block=payload[3] != 0,
+        anc_toggle=payload[4] != 0,
+    )
+
+
+def build_audio_settings(cnc_level=0, auto_cnc=False, spatial=0,
+                         wind_block=True, anc_toggle=True):
+    """Build AudioModesSettingsConfig [31.10] SETGET payload (5 bytes)."""
+    return bytes([
+        cnc_level,
+        1 if auto_cnc else 0,
+        spatial,
+        1 if wind_block else 0,
+        1 if anc_toggle else 0,
+    ])
 
 
 def build_mode_config_40(mode_idx, name, cnc_level=0, auto_cnc=False,

@@ -130,6 +130,28 @@ fn main() {
             }
             dev.anr().map(|a| println!("{}", a))
         }
+        "anc" => {
+            if args.len() > 2 {
+                let on = matches!(args[2].as_str(), "on" | "1" | "true" | "yes");
+                if let Err(e) = dev.set_anc(on) {
+                    return err_exit(&e);
+                }
+            }
+            dev.audio_settings().map(|(_, _, _, _, anc)| {
+                println!("{}", if anc != 0 { "on" } else { "off" });
+            })
+        }
+        "wind" => {
+            if args.len() > 2 {
+                let on = matches!(args[2].as_str(), "on" | "1" | "true" | "yes");
+                if let Err(e) = dev.set_wind(on) {
+                    return err_exit(&e);
+                }
+            }
+            dev.audio_settings().map(|(_, _, _, wind, _)| {
+                println!("{}", if wind != 0 { "on" } else { "off" });
+            })
+        }
         "prompts" => {
             if args.len() > 2 {
                 let on = matches!(args[2].as_str(), "on" | "1" | "true" | "yes");
@@ -281,7 +303,9 @@ fn usage() {
     println!("  battery             Battery percentage");
     println!("  current             Current mode name");
     println!("  quiet/aware/...     Switch audio mode");
-    println!("  cnc                 Show noise cancellation level");
+    println!("  cnc [0-10]          CNC level (0=max ANC, 10=most ambient)");
+    println!("  anc [on|off]        Toggle Active Noise Cancellation");
+    println!("  wind [on|off]       Toggle Wind Block (masks CNC effect)");
     println!("  eq [B M T]          Show/set EQ (-10 to +10)");
     println!("  name [TEXT]         Show/set device name");
     println!("  sidetone [MODE]     Show/set sidetone (off/low/medium/high)");

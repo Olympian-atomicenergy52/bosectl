@@ -32,6 +32,7 @@ pub fn qc_ultra2() -> DeviceConfig {
         current_mode: Some(Addr(31, 3)),
         mode_config: Some(Addr(31, 6)),
         favorites: Some(Addr(31, 8)),
+        audio_settings: Some(Addr(31, 10)),
         preset_modes: &[
             ("quiet", PresetMode { idx: 0, description: "Quiet — full ANC" }),
             ("aware", PresetMode { idx: 1, description: "Aware — transparency" }),
@@ -76,6 +77,7 @@ pub fn qc35() -> DeviceConfig {
         current_mode: None,
         mode_config: None,
         favorites: None,
+        audio_settings: None,
         preset_modes: &[
             ("high", PresetMode { idx: 0, description: "High — full noise cancellation" }),
             ("low", PresetMode { idx: 1, description: "Low — reduced noise cancellation" }),

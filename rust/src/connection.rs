@@ -271,6 +271,7 @@ impl<T: Transport> BmapConnection<T> {
             "anr" => self.config.anr.is_some(),
             "routing" => self.config.routing.is_some(),
             "source" => self.config.source.is_some(),
+            "audio_settings" => self.config.audio_settings.is_some(),
             "mode_config" => self.config.mode_config.is_some(),
             _ => false,
         }
@@ -324,15 +325,13 @@ impl<T: Transport> BmapConnection<T> {
 
     /// Set noise cancellation level (0-10).
     ///
-    /// If on a preset mode, creates/reuses a custom profile.
+    /// Scale is inverted: 0 = max ANC, 10 = most ambient pass-through.
+    /// Only audible when ANC is on and wind block is off.
     pub fn set_cnc(&self, level: u8) -> BmapResult<()> {
         if level > 10 {
             return Err(BmapError::InvalidArg("CNC level must be 0-10".into()));
         }
-        let (slot, config) = self.ensure_editable_profile()?;
-        self.write_mode_from_config(slot, &config, Some(level), None, None, None)?;
-        self.activate_slot(slot)?;
-        Ok(())
+        self.update_audio_settings(Some(level), None, None, None)
     }
 
     /// Set spatial audio mode ("off"=0, "room"=1, "head"=2).
@@ -343,9 +342,44 @@ impl<T: Transport> BmapConnection<T> {
             "head" => 2,
             _ => return Err(BmapError::InvalidArg("Spatial: off, room, head".into())),
         };
-        let (slot, config) = self.ensure_editable_profile()?;
-        self.write_mode_from_config(slot, &config, None, Some(spatial), None, None)?;
-        self.activate_slot(slot)?;
+        self.update_audio_settings(None, Some(spatial), None, None)
+    }
+
+    /// Toggle Active Noise Cancellation on/off.
+    pub fn set_anc(&self, enabled: bool) -> BmapResult<()> {
+        self.update_audio_settings(None, None, None, Some(enabled))
+    }
+
+    /// Toggle Wind Block on/off.
+    pub fn set_wind(&self, enabled: bool) -> BmapResult<()> {
+        self.update_audio_settings(None, None, Some(enabled), None)
+    }
+
+    /// Read current audio settings as 5-tuple: (cnc, auto_cnc, spatial, wind, anc).
+    pub fn audio_settings(&self) -> BmapResult<(u8, u8, u8, u8, u8)> {
+        let addr = self.addr(self.config.audio_settings)?;
+        let p = self.get(addr)?;
+        Ok((
+            p.first().copied().unwrap_or(0),
+            p.get(1).copied().unwrap_or(0),
+            p.get(2).copied().unwrap_or(0),
+            p.get(3).copied().unwrap_or(1),
+            p.get(4).copied().unwrap_or(1),
+        ))
+    }
+
+    fn update_audio_settings(&self, cnc: Option<u8>, spatial: Option<u8>,
+                              wind: Option<bool>, anc: Option<bool>) -> BmapResult<()> {
+        let addr = self.addr(self.config.audio_settings)?;
+        let cur = self.get(addr)?;
+        let payload = [
+            cnc.unwrap_or(cur.first().copied().unwrap_or(0)),
+            cur.get(1).copied().unwrap_or(0),  // auto_cnc
+            spatial.unwrap_or(cur.get(2).copied().unwrap_or(0)),
+            wind.map(|b| if b { 1 } else { 0 }).unwrap_or(cur.get(3).copied().unwrap_or(1)),
+            anc.map(|b| if b { 1 } else { 0 }).unwrap_or(cur.get(4).copied().unwrap_or(1)),
+        ];
+        self.setget(addr, &payload)?;
         Ok(())
     }
 
@@ -482,54 +516,6 @@ impl<T: Transport> BmapConnection<T> {
 
     // ── Internal Helpers ────────────────────────────────────────────────────
 
-    /// Switch to a slot, bouncing through another mode if already active.
-    ///
-    /// The headphone won't re-apply a mode config if it thinks it's already
-    /// on that mode. When we've just written new config to the current slot,
-    /// we need to switch away and back to force it to reload.
-    fn activate_slot(&self, slot: u8) -> BmapResult<()> {
-        let addr = self.addr(self.config.current_mode)?;
-        let current = self.mode_idx()?;
-        if current == slot {
-            let bounce = if slot != 0 { 0 } else { 1 };
-            self.start(addr, &[bounce, 0])?;
-        }
-        self.start(addr, &[slot, 0])?;
-        Ok(())
-    }
-
-    fn ensure_editable_profile(&self) -> BmapResult<(u8, ModeConfig)> {
-        let modes = self.modes()?;
-        let current_idx = self.mode_idx()?;
-
-        // If current mode is editable, use it
-        if let Some(config) = modes.iter().find(|m| m.mode_idx == current_idx) {
-            if config.editable {
-                return Ok((current_idx, config.clone()));
-            }
-        }
-
-        // Look for existing "Custom" profile
-        if let Some(config) = modes.iter().find(|m| m.name.eq_ignore_ascii_case("custom") && m.editable) {
-            return Ok((config.mode_idx, config.clone()));
-        }
-
-        // Create a new one
-        let slot = self.find_free_slot(&modes)?;
-        let (cnc_cur, _) = self.cnc().unwrap_or((0, 10));
-        self.write_mode(slot, "Custom", cnc_cur, 0, true, true, 0, 0)?;
-
-        // Re-read to get the full config
-        let modes = self.modes()?;
-        let config = modes.iter()
-            .find(|m| m.mode_idx == slot)
-            .cloned()
-            .ok_or_else(|| BmapError::Device {
-                message: "Failed to read back custom profile".into(), code: 0,
-            })?;
-        Ok((slot, config))
-    }
-
     fn find_free_slot(&self, modes: &[ModeConfig]) -> BmapResult<u8> {
         for &slot in self.config.editable_slots {
             match modes.iter().find(|m| m.mode_idx == slot) {
@@ -561,20 +547,6 @@ impl<T: Transport> BmapConnection<T> {
         Ok(())
     }
 
-    fn write_mode_from_config(&self, slot: u8, config: &ModeConfig,
-                               cnc: Option<u8>, spatial: Option<u8>,
-                               wind: Option<bool>, anc: Option<bool>) -> BmapResult<()> {
-        self.write_mode(
-            slot,
-            &config.name,
-            cnc.unwrap_or(config.cnc_level),
-            spatial.unwrap_or(config.spatial),
-            wind.unwrap_or(config.wind_block),
-            anc.unwrap_or(config.anc_toggle),
-            config.prompt_b1,
-            config.prompt_b2,
-        )
-    }
 }
 
 #[cfg(test)]

@@ -43,6 +43,15 @@ DeviceStatus = namedtuple("DeviceStatus", [
     "prompts_language",
 ])
 
+# Current audio settings (CNC, spatial, wind, ANC) from [31.10].
+AudioSettings = namedtuple("AudioSettings", [
+    "cnc_level",    # 0-10
+    "auto_cnc",     # bool
+    "spatial",      # 0=off, 1=room, 2=head
+    "wind_block",   # bool
+    "anc_toggle",   # bool
+])
+
 # Audio source information.
 AudioSource = namedtuple("AudioSource", [
     "source_type",  # "none", "bluetooth", or "auxiliary"

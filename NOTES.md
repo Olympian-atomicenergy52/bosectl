@@ -149,19 +149,31 @@ Modes 5-10 are empty slots that accept full configuration.
 The cloud auth the app uses is likely for syncing profiles across devices,
 not for writing to the headphone firmware — SETGET bypasses it entirely.
 
-##### Usage Pattern
+##### The real CNC path: `[31.10]` AudioModesSettingsConfig
+
+The ModeConfig-slot approach works for configuring stored profiles, but for
+**live** CNC/spatial/wind/ANC control, use `[31.10]` AudioModesSettingsConfig
+SETGET directly. This is the same register the Bose app writes to, fully
+unauthenticated, and applies immediately without mode switching.
+
 ```python
-# 1. Configure custom mode slot 5
-payload = [5, 0, 0]                    # mode 5, prompt NONE
-payload += encode_name("Custom")       # 32-byte name
-payload += [7, 0, 2, 1, 1]            # cnc=7, autoCNC=off, spatial=head, wind=on, anc=on
-send(bmap_packet(31, 6, OP_SETGET, payload))
-
-# 2. Switch to mode 5
-send(bmap_packet(31, 3, OP_START, [5, 0]))
-
-# Result: headphones now at CNC=7 with head-tracked spatial audio
+# [31.10] SETGET, 5-byte payload: [cnc, autoCNC, spatial, wind, anc]
+# cnc: 0-10 (INVERTED: 0=max ANC, 10=most ambient)
+# autoCNC: 0 only (1 is rejected with Runtime error 8)
+# spatial: 0=off, 1=room, 2=head
+# wind: 0=off, 1=on
+# anc: 0=off, 1=on
+send(bmap_packet(31, 10, OP_SETGET, [5, 0, 0, 0, 1]))
+# ↑ CNC level 5, autoCNC off, spatial off, wind block off, ANC on
 ```
+
+**Critical audibility interaction:** the CNC level only produces an audible
+difference when `anc=on` AND `wind=off`. Wind Block masks the CNC DSP path
+(probably to prevent wind compression from fighting ANC). With wind on,
+CNC 0 and CNC 10 sound identical.
+
+Also: `autoCNCEnabled=1` causes Runtime error 8 — firmware rejects it.
+Only manual CNC (auto_cnc=0) is allowed.
 
 ### Mode Config Details (raw data)
 ```

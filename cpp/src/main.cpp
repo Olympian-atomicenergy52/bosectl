@@ -113,6 +113,20 @@ int main(int argc, char** argv) {
         } else if (cmd == "anr") {
             if (argc > 2) dev.set_anr(argv[2]);
             std::cout << dev.anr() << "\n";
+        } else if (cmd == "anc") {
+            if (argc > 2) {
+                std::string v = argv[2];
+                dev.set_anc(v == "on" || v == "1" || v == "true");
+            }
+            auto s = dev.audio_settings();
+            std::cout << (s[4] ? "on" : "off") << "\n";
+        } else if (cmd == "wind") {
+            if (argc > 2) {
+                std::string v = argv[2];
+                dev.set_wind(v == "on" || v == "1" || v == "true");
+            }
+            auto s = dev.audio_settings();
+            std::cout << (s[3] ? "on" : "off") << "\n";
         } else if (cmd == "spatial") {
             if (argc < 3) { std::cerr << "Usage: bmapctl spatial <off|room|head>\n"; return 1; }
             dev.set_spatial(argv[2]);

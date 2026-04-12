@@ -72,8 +72,12 @@ def cmd_status(dev):
         except Exception:
             pass
     elif dev.has_feature("cnc"):
-        cnc_bar = "\u2588" * s.cnc_level + "\u2591" * (s.cnc_max - s.cnc_level)
-        row("CNC", "%s %d/%d" % (cnc_bar, s.cnc_level, s.cnc_max))
+        # Scale is inverted: 0 = max ANC, cnc_max = most ambient pass-through.
+        # Show the bar filled proportional to "amount of cancellation" so it
+        # reads intuitively (full = max ANC).
+        anc_amount = s.cnc_max - s.cnc_level
+        cnc_bar = "\u2588" * anc_amount + "\u2591" * s.cnc_level
+        row("CNC", "%s %d/%d (0=max)" % (cnc_bar, s.cnc_level, s.cnc_max))
 
     if s.eq:
         eq_str = "/".join("%+d" % b.current for b in s.eq)
@@ -252,7 +256,9 @@ def usage():
     print()
 
     section("Settings")
-    cmd("cnc <0-10>", "Set noise cancellation level")
+    cmd("cnc <0-10>", "CNC level (0=max ANC, 10=most ambient)")
+    cmd("anc on|off", "Toggle Active Noise Cancellation")
+    cmd("wind on|off", "Toggle Wind Block")
     cmd("eq B M T", "Set EQ (-10 to +10), or 'eq flat'")
     cmd("spatial MODE", "Spatial audio: off, room, head")
     cmd("name [TEXT]", "Get/set device name")
@@ -373,6 +379,18 @@ def main():
             if len(sys.argv) > 2:
                 dev.set_anr(sys.argv[2].lower())
             print(dev.anr())
+        elif cmd == "anc":
+            val = _parse_bool_arg(sys.argv[2:], "anc")
+            if val is not None:
+                dev.set_anc(val)
+            settings = dev._get("audio_settings")
+            print("on" if settings.anc_toggle else "off")
+        elif cmd == "wind":
+            val = _parse_bool_arg(sys.argv[2:], "wind")
+            if val is not None:
+                dev.set_wind(val)
+            settings = dev._get("audio_settings")
+            print("on" if settings.wind_block else "off")
         elif cmd == "sidetone":
             if len(sys.argv) > 2:
                 dev.set_sidetone(sys.argv[2])

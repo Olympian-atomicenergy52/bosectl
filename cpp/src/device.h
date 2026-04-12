@@ -108,6 +108,7 @@ struct DeviceConfig {
     std::optional<Addr> current_mode;
     std::optional<Addr> mode_config;
     std::optional<Addr> favorites;
+    std::optional<Addr> audio_settings;  // [31.10] direct CNC/spatial/wind/ANC
     std::vector<std::pair<std::string, PresetMode>> preset_modes;
     std::vector<uint8_t> editable_slots;
     ModeConfigParser parse_mode_config;

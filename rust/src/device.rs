@@ -114,6 +114,8 @@ pub struct DeviceConfig {
     pub current_mode: Option<Addr>,
     pub mode_config: Option<Addr>,
     pub favorites: Option<Addr>,
+    /// AudioModesSettingsConfig [31.10] — direct CNC/spatial/wind/ANC control.
+    pub audio_settings: Option<Addr>,
     pub preset_modes: &'static [(&'static str, PresetMode)],
     pub editable_slots: &'static [u8],
     /// Device-specific ModeConfig STATUS parser. None if device has no mode config.

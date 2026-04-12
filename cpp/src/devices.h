@@ -27,6 +27,7 @@ inline DeviceConfig qc_ultra2() {
     c.current_mode = Addr{31, 3};
     c.mode_config = Addr{31, 6};
     c.favorites = Addr{31, 8};
+    c.audio_settings = Addr{31, 10};
     c.preset_modes = {
         {"quiet",     {0, "Quiet — full ANC"}},
         {"aware",     {1, "Aware — transparency"}},

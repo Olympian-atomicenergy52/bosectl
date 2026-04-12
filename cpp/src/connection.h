@@ -2,6 +2,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <memory>
 #include <string>
 #include <vector>
@@ -74,6 +75,7 @@ public:
         if (name == "anr") return config_.anr.has_value();
         if (name == "routing") return config_.routing.has_value();
         if (name == "source") return config_.source.has_value();
+        if (name == "audio_settings") return config_.audio_settings.has_value();
         if (name == "mode_config") return config_.mode_config.has_value();
         return false;
     }
@@ -123,10 +125,7 @@ public:
 
     void set_cnc(uint8_t level) {
         if (level > 10) throw std::runtime_error("CNC level must be 0-10");
-        auto [slot, config] = ensure_editable_profile();
-        config.cnc_level = level;
-        write_mode(slot, config);
-        activate_slot(slot);
+        update_audio_settings(level, 255, 255, 255);
     }
 
     void set_spatial(const std::string& mode) {
@@ -135,10 +134,24 @@ public:
         else if (mode == "room") val = 1;
         else if (mode == "head") val = 2;
         else throw std::runtime_error("Spatial: off, room, head");
-        auto [slot, config] = ensure_editable_profile();
-        config.spatial = val;
-        write_mode(slot, config);
-        activate_slot(slot);
+        update_audio_settings(255, val, 255, 255);
+    }
+
+    void set_anc(bool enabled) {
+        update_audio_settings(255, 255, 255, enabled ? 1 : 0);
+    }
+
+    void set_wind(bool enabled) {
+        update_audio_settings(255, 255, enabled ? 1 : 0, 255);
+    }
+
+    // Returns (cnc, auto_cnc, spatial, wind, anc)
+    std::array<uint8_t, 5> audio_settings() {
+        auto addr = require(config_.audio_settings, "audio_settings");
+        auto p = get(addr);
+        std::array<uint8_t, 5> out = {0, 0, 0, 1, 1};
+        for (size_t i = 0; i < 5 && i < p.size(); i++) out[i] = p[i];
+        return out;
     }
 
     void set_eq(int8_t bass, int8_t mid, int8_t treble) {
@@ -315,16 +328,18 @@ private:
         try { return fn(); } catch (...) { return default_val; }
     }
 
-    // Switch to a slot, bouncing through another mode if already active.
-    // The headphone won't re-apply config if it thinks it's already on that mode.
-    void activate_slot(uint8_t slot) {
-        auto addr = require(config_.current_mode, "current_mode");
-        auto current = safe_call<uint8_t>([&]{ return mode_idx(); }, 255);
-        if (current == slot) {
-            uint8_t bounce = (slot != 0) ? 0 : 1;
-            start(addr, {bounce, 0});
-        }
-        start(addr, {slot, 0});
+    // Write audio settings via [31.10] preserving non-overridden fields.
+    // Use 255 as "don't change" for any parameter.
+    void update_audio_settings(uint8_t cnc, uint8_t spatial, uint8_t wind, uint8_t anc) {
+        auto addr = require(config_.audio_settings, "audio_settings");
+        auto cur = get(addr);
+        std::vector<uint8_t> p = {0, 0, 0, 1, 1};
+        for (size_t i = 0; i < 5 && i < cur.size(); i++) p[i] = cur[i];
+        if (cnc != 255) p[0] = cnc;
+        if (spatial != 255) p[2] = spatial;
+        if (wind != 255) p[3] = wind;
+        if (anc != 255) p[4] = anc;
+        setget(addr, p);
     }
 
     std::pair<uint8_t, ModeConfig> ensure_editable_profile() {

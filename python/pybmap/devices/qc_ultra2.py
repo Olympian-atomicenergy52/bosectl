@@ -123,6 +123,11 @@ FEATURES = {
     "favorites": {
         "addr": (31, 8),
     },
+    "audio_settings": {
+        "addr": (31, 10),
+        "parser": parsers.parse_audio_settings,
+        "builder": parsers.build_audio_settings,
+    },
 }
 
 # ── Mode Configuration ───────────────────────────────────────────────────────
