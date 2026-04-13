@@ -332,17 +332,17 @@ Each catalog entry carries:
 lookup_device(0x4082)    → BoseDevice{wolverine, "QuietComfort Ultra Headphones (2nd Gen)", config="qc_ultra2"}
 is_supported(0x4024)     → False (NCH 700: recognized, no config yet)
 supported_devices()      → [wolfcastle, baywolf, edith, wolverine]
-known_devices()          → full APK-sourced catalog
+known_devices()          → full catalog
 usb_ids(0x4082)          → (0x05A7, 0x4082)
 modalias(0x4082)         → "bluetooth:v05A7p4082d0000"
 ```
 
 The USB vendor ID `0x05A7` is shared by all Bose devices. The catalog
-is sourced from the decompiled Bose Music APK (`BoseProductId.java`
-enum) — the enum's `value` field is what the device reports in the
-Bluetooth Modalias string. Note that USB DFU PIDs (as listed by
-projects like bose-dfu) are a **different ID space** and should not be
-conflated with BT Modalias PIDs.
+is sourced from Bose's `BoseProductId` registry — the registry's
+`value` field is what the device reports in the Bluetooth Modalias
+string. Note that USB DFU PIDs (as listed by projects like bose-dfu)
+are a **different ID space** and should not be conflated with BT
+Modalias PIDs.
 
 Discovery uses the catalog to resolve product IDs to config keys. Devices
 with `config=None` are recognized (logged, not errored) but fall back to
@@ -359,8 +359,8 @@ a default config since they don't have a tested implementation yet.
 
 ### Known Unsupported (Future Targets)
 
-See `catalog.py` / `catalog.rs` / `catalog.h` for the full APK-sourced
-device list. Entries with `config=None` are recognized but not yet
+See `catalog.py` / `catalog.rs` / `catalog.h` for the full device
+list. Entries with `config=None` are recognized but not yet
 implemented.
 
 ## Adding a New Device

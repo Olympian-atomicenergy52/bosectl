@@ -1,7 +1,7 @@
 // Bose device catalog — known BMAP-capable devices.
-// Sourced from the decompiled Bose Music APK (BoseProductId.java enum).
-// The enum's `value` field is the product ID reported over Bluetooth
-// Modalias; verified against WOLVERINE (0x4082) and EDITH (0x4062).
+// Sourced from Bose's BoseProductId registry. The registry's `value`
+// field is the product ID reported over Bluetooth Modalias; verified
+// against WOLVERINE (0x4082) and EDITH (0x4062).
 #pragma once
 
 #include <cstdint>

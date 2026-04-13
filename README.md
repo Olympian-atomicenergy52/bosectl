@@ -113,7 +113,7 @@ pybmap.modalias(0x4082)   # "bluetooth:v05A7p4082d0000"
 pybmap.is_supported(0x4082)  # True — has tested config
 pybmap.is_supported(0x4039)  # False — QC45, recognized but untested
 pybmap.supported_devices()   # [wolfcastle, baywolf, edith, wolverine]
-pybmap.known_devices()       # full APK-sourced catalog
+pybmap.known_devices()       # full catalog
 ```
 
 ## Installation

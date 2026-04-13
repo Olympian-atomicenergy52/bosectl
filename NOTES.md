@@ -476,7 +476,7 @@ uses START to change modes in real time (it's the "instant switch" path).
 SET_GET is used for persistent config changes. This distinction means we can
 control the headphones in real time but can't change saved configuration.
 
-## Audio Source & Device Routing (APK-sourced)
+## Audio Source & Device Routing
 
 ### AudioManagement Source [5.1] — Query Active Source
 GET-only function. Response payload:
@@ -557,27 +557,21 @@ From `DeviceManagementPackets.java`:
 | 10   | InvalidState     | Not applicable to current state |
 | 20   | InsecureTransport| Packet on insecure transport |
 
-## APK Info
-- Package: com.bose.bosemusic (v12.1.6)
-- Decompiled with jadx to apk/decompiled/
-- Key classes:
-  - `com.bose.bmap.messages.enums.spec.BmapFunctionBlock` — block IDs
-  - `com.bose.bmap.messages.enums.spec.BmapFunction` — function IDs
-  - `com.bose.bmap.messages.enums.spec.BmapOperator` — operator IDs
-  - `com.bose.bmap.messages.packets.AudioModesCurrentModeStartPacket` — mode switch
-  - `com.bose.bmap.messages.packets.SettingsCncSetGetPacket` — CNC control
-  - `com.bose.bmap.service.SppConnectionManager` — SPP UUID: 00001101-...
-  - `com.bose.bmap.messages.models.settings.CncLevel` — CNC response parser
-  - `com.bose.bmap.messages.responses.SettingsCncResponse` — CNC payload format
-  - `defpackage/FD1.java` — auth challenge payload serializer
-  - `defpackage/C9274fE.java` — AuthenticationManager
-  - `com.bose.bmap.utils.encryption.ECDH` — secp256r1 key generation
-  - `com.bose.bmap.model.factories.AuthenticationPackets` — auth error codes & capabilities bitmask
+## BMAP Protocol Class References
+- `com.bose.bmap.messages.enums.spec.BmapFunctionBlock` — block IDs
+- `com.bose.bmap.messages.enums.spec.BmapFunction` — function IDs
+- `com.bose.bmap.messages.enums.spec.BmapOperator` — operator IDs
+- `com.bose.bmap.messages.packets.AudioModesCurrentModeStartPacket` — mode switch
+- `com.bose.bmap.messages.packets.SettingsCncSetGetPacket` — CNC control
+- `com.bose.bmap.service.SppConnectionManager` — SPP UUID: 00001101-...
+- `com.bose.bmap.messages.models.settings.CncLevel` — CNC response parser
+- `com.bose.bmap.messages.responses.SettingsCncResponse` — CNC payload format
+- `com.bose.bmap.utils.encryption.ECDH` — secp256r1 key generation
+- `com.bose.bmap.model.factories.AuthenticationPackets` — auth error codes & capabilities bitmask
 
 ## Tools
 - `bmap-capture.py` — Interactive setting change capture tool
 - `captures/` — Captured setting toggle data (8 captures)
-- `apk/` — Decompiled Bose Music APK
 - `snoop/` — Network captures and bugreports
 
 ## Quick Reference: Control Headphones from Linux
